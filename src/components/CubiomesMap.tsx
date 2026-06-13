@@ -1,11 +1,9 @@
-import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import { useRef, useMemo, useCallback } from 'react';
 import { biomeColor } from '../CubiomesTS';
 import type { Range } from '../CubiomesTS';
 
 export interface CubiomesMapProps {
   seed: bigint;
-  /** Blocks per pixel at scale=1. Default 4 (biome-resolution). */
-  blockScale?: number;
   /** Current viewport transform from the parent MapViewer. */
   transform: { x: number; y: number; scale: number };
   /** SVG viewport dimensions in pixels. */
@@ -13,69 +11,63 @@ export interface CubiomesMapProps {
   viewportHeight: number;
 }
 
-interface TileKey {
-  tileX: number;
-  tileZ: number;
-}
-
 const TILE_SIZE = 16;
 
-function tileKeyStr(tileX: number, tileZ: number): string {
-  return `${tileX},${tileZ}`;
+const PLACEHOLDER_BIOMES = [
+  0, 1, 2, 4, 5, 6, 7, 12, 14, 16, 21, 24, 27, 29, 35, 37,
+  40, 41, 42, 44, 45, 46, 177, 178, 179, 180, 181, 182, 184,
+];
+
+function tileKeyStr(tx: number, tz: number): string {
+  return `${tx},${tz}`;
 }
 
 export default function CubiomesMap({
   seed: _seed,
-  blockScale = 4,
   transform,
   viewportWidth,
   viewportHeight,
 }: CubiomesMapProps) {
   const cacheRef = useRef(new Map<string, Int32Array>());
-  const [generatorReady, setGeneratorReady] = useState(false);
-
-  useEffect(() => {
-    // TODO: call setupGenerator + applySeed when CubiomesTS is ported
-    // const gen = setupGenerator(MCVersion.MC_1_21);
-    // applySeed(gen, Dimension.DIM_OVERWORLD, seed);
-    // generatorRef.current = gen;
-    setGeneratorReady(false);
-  }, [_seed]);
 
   const visibleTiles = useMemo(() => {
+    if (viewportWidth === 0 || viewportHeight === 0) return [];
+
     const invScale = 1 / transform.scale;
-    const worldLeft = (-transform.x * invScale) / blockScale;
-    const worldTop = (-transform.y * invScale) / blockScale;
-    const worldRight = worldLeft + (viewportWidth * invScale) / blockScale;
-    const worldBottom = worldTop + (viewportHeight * invScale) / blockScale;
+    const worldLeft = -transform.x * invScale;
+    const worldTop = -transform.y * invScale;
+    const worldRight = worldLeft + viewportWidth * invScale;
+    const worldBottom = worldTop + viewportHeight * invScale;
 
     const tileLeft = Math.floor(worldLeft / TILE_SIZE);
     const tileTop = Math.floor(worldTop / TILE_SIZE);
     const tileRight = Math.ceil(worldRight / TILE_SIZE);
     const tileBottom = Math.ceil(worldBottom / TILE_SIZE);
 
-    const tiles: TileKey[] = [];
+    const tiles: { tileX: number; tileZ: number }[] = [];
     for (let tz = tileTop; tz <= tileBottom; tz++) {
       for (let tx = tileLeft; tx <= tileRight; tx++) {
         tiles.push({ tileX: tx, tileZ: tz });
       }
     }
     return tiles;
-  }, [transform, viewportWidth, viewportHeight, blockScale]);
+  }, [transform, viewportWidth, viewportHeight]);
 
   const generateTile = useCallback(
-    (_range: Range): Int32Array => {
-      const cache = new Int32Array(_range.sx * _range.sz);
-      // TODO: genBiomes(generatorRef.current, cache, range) when ported
-      // For now, fill with a deterministic placeholder pattern
-      for (let z = 0; z < _range.sz; z++) {
-        for (let x = 0; x < _range.sx; x++) {
-          cache[z * _range.sx + x] = Math.abs((_range.x + x) * 7 + (_range.z + z) * 13) % 60;
+    (range: Range): Int32Array => {
+      const cache = new Int32Array(range.sx * range.sz);
+      // TODO: genBiomes(generator, cache, range) when CubiomesTS is ported
+      for (let z = 0; z < range.sz; z++) {
+        for (let x = 0; x < range.sx; x++) {
+          const wx = range.x + x;
+          const wz = range.z + z;
+          const hash = Math.abs(wx * 374761393 + wz * 668265263) >>> 0;
+          cache[z * range.sx + x] = PLACEHOLDER_BIOMES[hash % PLACEHOLDER_BIOMES.length];
         }
       }
       return cache;
     },
-    [generatorReady],
+    [],
   );
 
   const tileElements = useMemo(() => {
@@ -87,7 +79,7 @@ export default function CubiomesMap({
       let biomes = cache.get(key);
       if (!biomes) {
         const range: Range = {
-          scale: blockScale,
+          scale: 1,
           x: tileX * TILE_SIZE,
           z: tileZ * TILE_SIZE,
           sx: TILE_SIZE,
@@ -106,10 +98,10 @@ export default function CubiomesMap({
           rects.push(
             <rect
               key={`${x},${z}`}
-              x={(tileX * TILE_SIZE + x) * blockScale}
-              y={(tileZ * TILE_SIZE + z) * blockScale}
-              width={blockScale}
-              height={blockScale}
+              x={tileX * TILE_SIZE + x}
+              y={tileZ * TILE_SIZE + z}
+              width={1}
+              height={1}
               fill={biomeColor(biomeId)}
             />,
           );
@@ -120,7 +112,7 @@ export default function CubiomesMap({
     }
 
     return elements;
-  }, [visibleTiles, blockScale, generateTile]);
+  }, [visibleTiles, generateTile]);
 
   return <>{tileElements}</>;
 }

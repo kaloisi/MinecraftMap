@@ -12,10 +12,13 @@ export interface MapViewerProps {
   seed: bigint;
 }
 
+const INITIAL_SCALE = 4;
+
 export default function MapViewer({ seed }: MapViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
+  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const initialized = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
 
@@ -83,6 +86,16 @@ export default function MapViewer({ seed }: MapViewerProps) {
     observer.observe(svg);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (initialized.current || viewport.width === 0 || viewport.height === 0) return;
+    initialized.current = true;
+    setTransform({
+      scale: INITIAL_SCALE,
+      x: viewport.width / 2,
+      y: viewport.height / 2,
+    });
+  }, [viewport]);
 
   return (
     <Box sx={{ flexGrow: 1, overflow: 'hidden', cursor: isPanning.current ? 'grabbing' : 'grab' }}>
