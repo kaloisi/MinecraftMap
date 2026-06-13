@@ -66,28 +66,72 @@ function generateTile(
   return cache;
 }
 
+interface MergedRect {
+  x: number;
+  z: number;
+  w: number;
+  h: number;
+  fill: string;
+}
+
+function mergeRects(biomes: Int32Array, size: number): MergedRect[] {
+  const result: MergedRect[] = [];
+  let previousRuns: MergedRect[] = [];
+
+  for (let z = 0; z < size; z++) {
+    const currentRuns: MergedRect[] = [];
+    let x = 0;
+    while (x < size) {
+      const biomeId = biomes[z * size + x];
+      const fill = biomeColor(biomeId);
+      let runEnd = x + 1;
+      while (runEnd < size && biomes[z * size + runEnd] === biomeId) runEnd++;
+      const w = runEnd - x;
+
+      let merged = false;
+      for (let i = 0; i < previousRuns.length; i++) {
+        const r = previousRuns[i];
+        if (r.x === x && r.w === w && r.fill === fill) {
+          r.h++;
+          currentRuns.push(r);
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) {
+        const rect: MergedRect = { x, z, w, h: 1, fill };
+        currentRuns.push(rect);
+        result.push(rect);
+      }
+      x = runEnd;
+    }
+    previousRuns = currentRuns;
+  }
+  return result;
+}
+
 const ChunkTile = memo(function ChunkTile({
   tileX,
   tileZ,
   biomes,
 }: ChunkData) {
-  const rects: React.ReactElement[] = [];
-  for (let z = 0; z < TILE_SIZE; z++) {
-    for (let x = 0; x < TILE_SIZE; x++) {
-      const biomeId = biomes[z * TILE_SIZE + x];
-      rects.push(
+  const merged = mergeRects(biomes, TILE_SIZE);
+  const ox = tileX * TILE_SIZE;
+  const oz = tileZ * TILE_SIZE;
+  return (
+    <g id={`chunk_${tileX}_${tileZ}`}>
+      {merged.map((r, i) => (
         <rect
-          key={`${x},${z}`}
-          x={tileX * TILE_SIZE + x}
-          y={tileZ * TILE_SIZE + z}
-          width={1}
-          height={1}
-          fill={biomeColor(biomeId)}
-        />,
-      );
-    }
-  }
-  return <g id={`chunk_${tileX}_${tileZ}`}>{rects}</g>;
+          key={i}
+          x={ox + r.x}
+          y={oz + r.z}
+          width={r.w}
+          height={r.h}
+          fill={r.fill}
+        />
+      ))}
+    </g>
+  );
 });
 
 export default function CubiomesMap({
