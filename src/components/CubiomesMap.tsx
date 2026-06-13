@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react';
+import { useMemo, useState, useEffect, memo } from 'react';
 import {
   biomeColor,
   setupGenerator,
@@ -21,6 +21,7 @@ export interface CubiomesMapProps {
 
 const TILE_SIZE = 16;
 const BUFFER_CHUNKS = 5;
+const BATCH_SIZE = 8;
 
 let cachedGen: { seed: bigint; gen: ReturnType<typeof setupGenerator> } | null = null;
 const tileCache = new Map<string, Int32Array>();
@@ -44,6 +45,25 @@ function getGenerator(seed: bigint) {
 
 function tileKeyStr(tx: number, tz: number): string {
   return `${tx},${tz}`;
+}
+
+function generateTile(
+  generator: ReturnType<typeof setupGenerator>,
+  tx: number,
+  tz: number,
+): Int32Array {
+  const range: Range = {
+    scale: 4,
+    x: tx * TILE_SIZE,
+    z: tz * TILE_SIZE,
+    sx: TILE_SIZE,
+    sz: TILE_SIZE,
+    y: 320,
+    sy: 1,
+  };
+  const cache = allocCache(range);
+  genBiomes(generator, cache, range);
+  return cache;
 }
 
 const ChunkTile = memo(function ChunkTile({
@@ -77,8 +97,9 @@ export default function CubiomesMap({
   viewportHeight,
 }: CubiomesMapProps) {
   const generator = useMemo(() => getGenerator(seed), [seed]);
+  const [asyncVersion, setAsyncVersion] = useState(0);
 
-  const chunks = useMemo(() => {
+  const pendingKeys = useMemo(() => {
     if (viewportWidth === 0 || viewportHeight === 0) return [];
 
     const invScale = 1 / transform.scale;
@@ -105,31 +126,71 @@ export default function CubiomesMap({
       }
     }
 
+    const pending: string[] = [];
     for (const key of desiredKeys) {
       if (!activeChunks.has(key)) {
         const [tx, tz] = key.split(',').map(Number);
-        let biomes = tileCache.get(key);
-        if (!biomes) {
-          const range: Range = {
-            scale: 4,
-            x: tx * TILE_SIZE,
-            z: tz * TILE_SIZE,
-            sx: TILE_SIZE,
-            sz: TILE_SIZE,
-            y: 320,
-            sy: 1,
-          };
-          const cache = allocCache(range);
-          genBiomes(generator, cache, range);
-          biomes = cache;
-          tileCache.set(key, biomes);
+        const cached = tileCache.get(key);
+        if (cached) {
+          activeChunks.set(key, { tileX: tx, tileZ: tz, biomes: cached });
+        } else {
+          pending.push(key);
         }
-        activeChunks.set(key, { tileX: tx, tileZ: tz, biomes });
       }
     }
 
-    return Array.from(activeChunks.values());
+    const centerTx = (tileLeft + tileRight) / 2;
+    const centerTz = (tileTop + tileBottom) / 2;
+    pending.sort((a, b) => {
+      const [ax, az] = a.split(',').map(Number);
+      const [bx, bz] = b.split(',').map(Number);
+      return (ax - centerTx) ** 2 + (az - centerTz) ** 2
+        - ((bx - centerTx) ** 2 + (bz - centerTz) ** 2);
+    });
+
+    return pending;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generator triggers recalc on seed change
   }, [transform, viewportWidth, viewportHeight, generator]);
+
+  useEffect(() => {
+    if (pendingKeys.length === 0) return;
+
+    let cancelled = false;
+    let i = 0;
+
+    function processBatch() {
+      if (cancelled) return;
+
+      const end = Math.min(i + BATCH_SIZE, pendingKeys.length);
+      for (; i < end; i++) {
+        if (cancelled) return;
+        const key = pendingKeys[i];
+        if (activeChunks.has(key)) continue;
+        const [tx, tz] = key.split(',').map(Number);
+        const biomes = generateTile(generator, tx, tz);
+        tileCache.set(key, biomes);
+        activeChunks.set(key, { tileX: tx, tileZ: tz, biomes });
+      }
+
+      setAsyncVersion((v) => v + 1);
+
+      if (i < pendingKeys.length && !cancelled) {
+        setTimeout(processBatch, 0);
+      }
+    }
+
+    setTimeout(processBatch, 0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingKeys, generator]);
+
+  const chunks = useMemo(
+    () => Array.from(activeChunks.values()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pendingKeys, asyncVersion],
+  );
 
   return (
     <>
