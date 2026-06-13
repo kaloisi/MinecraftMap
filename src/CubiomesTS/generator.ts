@@ -1,19 +1,81 @@
-import type { MCVersion } from './biomes';
-import type { Generator, Range, Dimension } from './types';
+import { MCVersion } from './biomes';
+import type { Range } from './types';
+import { Dimension } from './types';
+import {
+  type BiomeNoise,
+  createBiomeNoise,
+  initBiomeNoise,
+  setBiomeSeed,
+  genBiomeNoiseScaled,
+} from './biomenoise';
 
-export function setupGenerator(_mc: MCVersion, _flags: number = 0): Generator {
-  // TODO: initialize noise generators per cubiomes setupGenerator
-  throw new Error('Not yet implemented — run the port-cubiomes skill to generate');
+export const enum GeneratorFlags {
+  LARGE_BIOMES = 0x1,
+  NO_BETA_OCEAN = 0x2,
+  FORCE_OCEAN_VARIANTS = 0x4,
 }
 
-export function applySeed(_gen: Generator, _dim: Dimension, _seed: bigint): void {
-  throw new Error('Not yet implemented — run the port-cubiomes skill to generate');
+export interface Generator {
+  mc: MCVersion;
+  dim: Dimension;
+  flags: number;
+  seed: bigint;
+  sha: bigint;
+  bn: BiomeNoise;
 }
 
-export function genBiomes(_gen: Generator, _cache: Int32Array, _range: Range): void {
-  throw new Error('Not yet implemented — run the port-cubiomes skill to generate');
+export function setupGenerator(mc: MCVersion, flags: number = 0): Generator {
+  if (mc < MCVersion.MC_1_18) {
+    throw new Error('Only MC 1.18+ is supported');
+  }
+  const bn = createBiomeNoise();
+  initBiomeNoise(bn, mc);
+  return {
+    mc,
+    dim: Dimension.DIM_OVERWORLD,
+    flags,
+    seed: 0n,
+    sha: 0n,
+    bn,
+  };
 }
 
-export function getBiomeAt(_gen: Generator, _scale: number, _x: number, _y: number, _z: number): number {
-  throw new Error('Not yet implemented — run the port-cubiomes skill to generate');
+export function applySeed(gen: Generator, dim: Dimension, seed: bigint): void {
+  gen.dim = dim;
+  gen.seed = seed;
+  gen.sha = 0n;
+
+  if (dim === Dimension.DIM_OVERWORLD) {
+    setBiomeSeed(gen.bn, seed, !!(gen.flags & GeneratorFlags.LARGE_BIOMES));
+  }
+  // Nether and End biome generation not yet ported
+}
+
+export function allocCache(range: Range): Int32Array {
+  const sy = range.sy <= 0 ? 1 : range.sy;
+  let len = range.sx * range.sz * sy;
+  if (range.scale <= 1) {
+    const sx = ((range.sx + 3) >> 2) + 2;
+    const sy2 = ((sy + 3) >> 2) + 2;
+    const sz = ((range.sz + 3) >> 2) + 2;
+    len += sx * sy2 * sz;
+  }
+  return new Int32Array(len);
+}
+
+export function genBiomes(gen: Generator, cache: Int32Array, range: Range): void {
+  if (gen.dim !== Dimension.DIM_OVERWORLD) {
+    throw new Error('Only Overworld dimension is supported');
+  }
+  if (gen.mc < MCVersion.MC_1_18) {
+    throw new Error('Only MC 1.18+ is supported');
+  }
+  genBiomeNoiseScaled(gen.bn, cache, range);
+}
+
+export function getBiomeAt(gen: Generator, scale: number, x: number, y: number, z: number): number {
+  const range: Range = { scale, x, z, sx: 1, sz: 1, y, sy: 1 };
+  const cache = allocCache(range);
+  genBiomes(gen, cache, range);
+  return cache[0];
 }
