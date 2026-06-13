@@ -1,5 +1,3 @@
-import type { MCVersion } from './biomes';
-
 export interface Range {
   scale: number;
   x: number;
@@ -17,33 +15,24 @@ export interface PerlinNoise {
   c: number;
   amplitude: number;
   lacunarity: number;
+  h2: number;
+  d2: number;
+  t2: number;
 }
 
 export interface OctaveNoise {
   octaves: PerlinNoise[];
+  octcnt: number;
 }
 
 export interface DoublePerlinNoise {
   amplitude: number;
-  first: OctaveNoise;
-  second: OctaveNoise;
-}
-
-export interface BiomeNoise {
-  climate: DoublePerlinNoise[];
-  shift: DoublePerlinNoise;
+  octA: OctaveNoise;
+  octB: OctaveNoise;
 }
 
 export const enum Dimension {
   DIM_OVERWORLD = 0,
   DIM_NETHER = -1,
   DIM_END = 1,
-}
-
-export interface Generator {
-  mc: MCVersion;
-  dim: Dimension;
-  flags: number;
-  seed: bigint;
-  bn: BiomeNoise;
 }
