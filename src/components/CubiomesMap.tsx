@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import {
   biomeColor,
   setupGenerator,
@@ -20,13 +20,22 @@ export interface CubiomesMapProps {
 }
 
 const TILE_SIZE = 16;
+const BUFFER_CHUNKS = 5;
 
 let cachedGen: { seed: bigint; gen: ReturnType<typeof setupGenerator> } | null = null;
 const tileCache = new Map<string, Int32Array>();
+const activeChunks = new Map<string, ChunkData>();
+
+interface ChunkData {
+  tileX: number;
+  tileZ: number;
+  biomes: Int32Array;
+}
 
 function getGenerator(seed: bigint) {
   if (cachedGen && cachedGen.seed === seed) return cachedGen.gen;
   tileCache.clear();
+  activeChunks.clear();
   const gen = setupGenerator(MCVersion.MC_1_21);
   applySeed(gen, Dimension.DIM_OVERWORLD, seed);
   cachedGen = { seed, gen };
@@ -37,6 +46,30 @@ function tileKeyStr(tx: number, tz: number): string {
   return `${tx},${tz}`;
 }
 
+const ChunkTile = memo(function ChunkTile({
+  tileX,
+  tileZ,
+  biomes,
+}: ChunkData) {
+  const rects: React.ReactElement[] = [];
+  for (let z = 0; z < TILE_SIZE; z++) {
+    for (let x = 0; x < TILE_SIZE; x++) {
+      const biomeId = biomes[z * TILE_SIZE + x];
+      rects.push(
+        <rect
+          key={`${x},${z}`}
+          x={tileX * TILE_SIZE + x}
+          y={tileZ * TILE_SIZE + z}
+          width={1}
+          height={1}
+          fill={biomeColor(biomeId)}
+        />,
+      );
+    }
+  }
+  return <g id={`chunk_${tileX}_${tileZ}`}>{rects}</g>;
+});
+
 export default function CubiomesMap({
   seed,
   transform,
@@ -45,7 +78,7 @@ export default function CubiomesMap({
 }: CubiomesMapProps) {
   const generator = useMemo(() => getGenerator(seed), [seed]);
 
-  const visibleTiles = useMemo(() => {
+  const chunks = useMemo(() => {
     if (viewportWidth === 0 || viewportHeight === 0) return [];
 
     const invScale = 1 / transform.scale;
@@ -54,64 +87,60 @@ export default function CubiomesMap({
     const worldRight = worldLeft + viewportWidth * invScale;
     const worldBottom = worldTop + viewportHeight * invScale;
 
-    const tileLeft = Math.floor(worldLeft / TILE_SIZE);
-    const tileTop = Math.floor(worldTop / TILE_SIZE);
-    const tileRight = Math.ceil(worldRight / TILE_SIZE);
-    const tileBottom = Math.ceil(worldBottom / TILE_SIZE);
+    const tileLeft = Math.floor(worldLeft / TILE_SIZE) - BUFFER_CHUNKS;
+    const tileTop = Math.floor(worldTop / TILE_SIZE) - BUFFER_CHUNKS;
+    const tileRight = Math.ceil(worldRight / TILE_SIZE) + BUFFER_CHUNKS;
+    const tileBottom = Math.ceil(worldBottom / TILE_SIZE) + BUFFER_CHUNKS;
 
-    const tiles: { tileX: number; tileZ: number }[] = [];
+    const desiredKeys = new Set<string>();
     for (let tz = tileTop; tz <= tileBottom; tz++) {
       for (let tx = tileLeft; tx <= tileRight; tx++) {
-        tiles.push({ tileX: tx, tileZ: tz });
+        desiredKeys.add(tileKeyStr(tx, tz));
       }
     }
-    return tiles;
-  }, [transform, viewportWidth, viewportHeight]);
 
-  const tileElements = useMemo(() => {
-    const elements: React.ReactElement[] = [];
-
-    for (const { tileX, tileZ } of visibleTiles) {
-      const key = tileKeyStr(tileX, tileZ);
-      let biomes = tileCache.get(key);
-      if (!biomes) {
-        const range: Range = {
-          scale: 4,
-          x: tileX * TILE_SIZE,
-          z: tileZ * TILE_SIZE,
-          sx: TILE_SIZE,
-          sz: TILE_SIZE,
-          y: 320,
-          sy: 1,
-        };
-        const cache = allocCache(range);
-        genBiomes(generator, cache, range);
-        biomes = cache;
-        tileCache.set(key, biomes);
+    for (const key of activeChunks.keys()) {
+      if (!desiredKeys.has(key)) {
+        activeChunks.delete(key);
       }
+    }
 
-      const rects: React.ReactElement[] = [];
-      for (let z = 0; z < TILE_SIZE; z++) {
-        for (let x = 0; x < TILE_SIZE; x++) {
-          const biomeId = biomes[z * TILE_SIZE + x];
-          rects.push(
-            <rect
-              key={`${x},${z}`}
-              x={tileX * TILE_SIZE + x}
-              y={tileZ * TILE_SIZE + z}
-              width={1}
-              height={1}
-              fill={biomeColor(biomeId)}
-            />,
-          );
+    for (const key of desiredKeys) {
+      if (!activeChunks.has(key)) {
+        const [tx, tz] = key.split(',').map(Number);
+        let biomes = tileCache.get(key);
+        if (!biomes) {
+          const range: Range = {
+            scale: 4,
+            x: tx * TILE_SIZE,
+            z: tz * TILE_SIZE,
+            sx: TILE_SIZE,
+            sz: TILE_SIZE,
+            y: 320,
+            sy: 1,
+          };
+          const cache = allocCache(range);
+          genBiomes(generator, cache, range);
+          biomes = cache;
+          tileCache.set(key, biomes);
         }
+        activeChunks.set(key, { tileX: tx, tileZ: tz, biomes });
       }
-
-      elements.push(<g key={key}>{rects}</g>);
     }
 
-    return elements;
-  }, [visibleTiles, generator]);
+    return Array.from(activeChunks.values());
+  }, [transform, viewportWidth, viewportHeight, generator]);
 
-  return <>{tileElements}</>;
+  return (
+    <>
+      {chunks.map((chunk) => (
+        <ChunkTile
+          key={tileKeyStr(chunk.tileX, chunk.tileZ)}
+          tileX={chunk.tileX}
+          tileZ={chunk.tileZ}
+          biomes={chunk.biomes}
+        />
+      ))}
+    </>
+  );
 }
