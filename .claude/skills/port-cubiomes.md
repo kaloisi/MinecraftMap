@@ -123,14 +123,38 @@ Apply these patterns consistently throughout the port:
 | Pointer-linked structs | Array + index references |
 | `sizeof(int) * n` | `new Int32Array(n)` |
 
-### Step 4 — Verify
+### Step 4 — Migrate consuming code
 
-After porting:
+After regenerating the library, update all files outside `src/CubiomesTS/` that import from it:
+
+1. **Find all consumers:**
+   ```bash
+   grep -r "from.*CubiomesTS" src/ --include="*.ts" --include="*.tsx" -l | grep -v "src/CubiomesTS/"
+   ```
+
+2. **For each consumer, check and fix:**
+   - **Removed or renamed exports:** If a function/type was renamed or removed in the regenerated library, update the import and all call sites.
+   - **Changed signatures:** If a function's parameter types or return type changed (e.g., `number` → `bigint`, new required parameter, renamed interface field), update all call sites to match.
+   - **New API opportunities:** If the upstream added new functions that replace workarounds in consuming code, refactor to use the new API.
+   - **Version constants:** If new `MCVersion` values were added, check whether consumers should default to the latest version.
+
+3. **Update `src/CubiomesTS/README.md`** to reflect any API changes — new functions, changed signatures, removed exports, or new usage patterns.
+
+4. **Key consumer files to check:**
+   - `src/components/CubiomesMap.tsx` — biome generation and rendering pipeline
+   - `src/MapViewer.tsx` — passes seed and viewport to CubiomesMap
+   - `src/App.tsx` — may reference version constants or seed types
+   - Any future Web Worker files that call `genBiomes` or structure finders
+
+### Step 5 — Verify
+
+After porting and migrating:
 1. Run `npm run build` to verify there are no TypeScript compilation errors.
 2. Run `npm run lint` to check for lint issues and fix them.
 3. Spot-check that every public function from the C API that is on the call path (see master prompt) has a corresponding export in `src/CubiomesTS/index.ts`.
+4. Verify that all consuming code compiles and uses the updated API correctly.
 
-### Step 5 — Record learnings and refine this skill
+### Step 6 — Record learnings and refine this skill
 
 After a successful port:
 
