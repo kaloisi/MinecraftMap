@@ -8,9 +8,35 @@ Run this skill whenever the cubiomes TypeScript port needs to be created or rege
 
 ## Instructions
 
+### Step 0 — Detect upstream changes and plan scope
+
+Before porting, determine what has changed since the last run:
+
+1. Read the **History** section at the bottom of this file to find the last recorded upstream commit hash.
+2. Fetch the current HEAD of `https://github.com/Cubitect/cubiomes`:
+   ```bash
+   git ls-remote https://github.com/Cubitect/cubiomes.git HEAD
+   ```
+3. If the hash matches the last recorded hash, inform the user that the upstream is unchanged and ask whether to proceed with a full regeneration or skip.
+4. If the hash differs, clone or fetch the upstream repo to a temp directory and run:
+   ```bash
+   git diff <last-recorded-hash>..<current-hash> --stat
+   git diff <last-recorded-hash>..<current-hash> -- rng.h noise.c noise.h biomenoise.c biomenoise.h generator.c generator.h biomes.h finders.c finders.h util.h
+   ```
+5. **Scope the regeneration based on what changed:**
+   - If only `biomes.h` changed → regenerate `biomes.ts` and `btrees.ts` only (new biome IDs or version constants).
+   - If only `finders.c/h` changed → regenerate `finders.ts` only.
+   - If `rng.h` changed → regenerate `rng.ts`, then cascade to files that depend on it (`noise.ts`, `biomenoise.ts`).
+   - If `noise.c/h` changed → regenerate `noise.ts` and `biomenoise.ts`.
+   - If `biomenoise.c/h` changed → regenerate `biomenoise.ts` and `btrees.ts` (biome tree data may have changed).
+   - If `generator.c/h` changed → regenerate `generator.ts`.
+   - If nothing in scope changed → skip porting, inform the user.
+   - If this is the first run (no history) → full regeneration of all files.
+6. Review the **History** section for lessons learned from prior runs. Apply any relevant patterns or workarounds noted there.
+
 ### Step 1 — Fetch the latest cubiomes source
 
-Fetch the latest versions of these files from `https://github.com/Cubitect/cubiomes` (use the `main` branch). Only these files are in scope:
+Fetch the latest versions of these files from `https://github.com/Cubitect/cubiomes` (use the `main` branch). Only fetch files identified as needing regeneration in Step 0. If doing a full regeneration, fetch all. Only these files are in scope:
 
 | C source file | Purpose |
 |---|---|
@@ -104,6 +130,25 @@ After porting:
 2. Run `npm run lint` to check for lint issues and fix them.
 3. Spot-check that every public function from the C API that is on the call path (see master prompt) has a corresponding export in `src/CubiomesTS/index.ts`.
 
+### Step 5 — Record learnings and refine this skill
+
+After a successful port:
+
+1. **Record a new history entry.** Append an entry to the **History** section at the bottom of this file with:
+   - Today's date
+   - The upstream cubiomes commit hash that was ported (from Step 0)
+   - Files regenerated (full or partial list)
+   - Any bugs encountered and how they were fixed
+   - Any new patterns, workarounds, or gotchas discovered
+   - Any changes to the upstream C API that required adaptation
+
+2. **Review and optimize this skill.** Re-read the entire skill file and:
+   - Update translation patterns in Step 3 if new patterns were discovered
+   - Update the skip list in Step 1 if new files or functions were added/removed upstream
+   - Tighten or clarify any instructions that caused confusion during this run
+   - Remove any instructions that are no longer relevant
+   - Ensure the Step 0 change-detection cascade rules are still accurate
+
 ### Important notes
 
 - **MC 1.18+ only.** Do not port any `layers.c/h` layer-stack logic. If you encounter `MC <= MC_1_17` branches in the C code, skip them or add an early return/throw for unsupported versions.
@@ -111,3 +156,25 @@ After porting:
 - **Keep function names matching the C originals** so the port can be cross-referenced with the cubiomes source.
 - **No comments except where the WHY is non-obvious** (e.g., explaining a BigInt mask or a deviation from the C original).
 - Consult `docs/MASTER_PROMPT.md` for architectural context and the full list of what to skip.
+
+---
+
+## History
+
+### 2026-06-13 — Upstream `e61f9058`
+
+**Files regenerated:** Full initial port — `rng.ts`, `noise.ts`, `btrees.ts`, `biomenoise.ts`, `finders.ts`, `generator.ts`, `types.ts`, `index.ts`
+
+**Learnings:**
+
+- **`indexedLerp` is a gradient function, not an RNG primitive.** Despite living in `rng.h` in the C source, it belongs in `noise.ts` because it's only used by Perlin noise sampling. Define it locally in `noise.ts` rather than exporting from `rng.ts`.
+- **`skipNextN` requires `bigint` for the skip count parameter.** Callers in `noise.ts` (`octaveInit`) compute the skip as `number` arithmetic (`-end * 262`), which must be wrapped with `BigInt()` before passing.
+- **BiomeTree data uses `BigUint64Array`.** The node data in `btrees.ts` stores packed uint64 values. Use `BigUint64Array` (not `Uint32Array` pairs) for faithful bit extraction with `>> shift & mask` patterns.
+- **SplineStack uses flat arrays with index references.** C pointer-linked `Spline*` children become integer indices into `stack[]` and `fstack[]` arrays. The `SplineStack` holds `stack: Spline[42]`, `fstack: FixSpline[151]`, with `len` and `flen` counters.
+- **DoublePerlinNoise fields:** Use `octA`/`octB` (matching the TS types), not `first`/`second` from some C versions.
+- **`PerlinNoise` needs extra cached fields:** `h2`, `d2`, `t2` — these are precomputed in `xPerlinInit` and used by noise sampling. They don't exist in all C struct versions but are needed for correctness.
+- **`let` vs `const` lint strictness:** ESLint's `prefer-const` catches variables that are initialized once and never reassigned, even if they look like accumulators. Watch for seed variables computed in a single expression (`let s = a + b + c`) — use `const` if never reassigned.
+- **React 19 ref-in-render rules:** `useRef` values cannot be read inside `useMemo`/render. For caching generators and tile data, use module-level variables instead of refs.
+- **Scale 1:1 (Voronoi) is not yet implemented** in `genBiomeNoiseScaled`. Throws an error. Scale 4 works for the map viewer.
+- **`biomenoise.ts` is the hardest file to port.** It contains the spline system, climate seed initialization with md5 hashes, and the full biome sampling pipeline. Expect this to take the most time and produce the most bugs.
+- **Fetching raw C source:** Use `curl` to download raw files from GitHub (`https://raw.githubusercontent.com/Cubitect/cubiomes/<hash>/<file>`). The GitHub MCP tools are repository-scoped and cannot access `Cubitect/cubiomes`. WebFetch may summarize content instead of returning it verbatim.
