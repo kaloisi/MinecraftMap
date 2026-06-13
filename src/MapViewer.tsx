@@ -1,15 +1,21 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import Box from '@mui/material/Box';
+import CubiomesMap from './components/CubiomesMap';
 
-interface Transform {
+export interface Transform {
   x: number;
   y: number;
   scale: number;
 }
 
-export default function MapViewer() {
+export interface MapViewerProps {
+  seed: bigint;
+}
+
+export default function MapViewer({ seed }: MapViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
 
@@ -61,6 +67,23 @@ export default function MapViewer() {
     return () => svg.removeEventListener('wheel', prevent);
   }, []);
 
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setViewport({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'hidden', cursor: isPanning.current ? 'grabbing' : 'grab' }}>
       <svg
@@ -72,23 +95,15 @@ export default function MapViewer() {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        style={{ display: 'block', touchAction: 'none' }}
+        style={{ display: 'block', touchAction: 'none', background: '#121212' }}
       >
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-          {/* Placeholder grid to demonstrate pan/zoom */}
-          <rect x={-500} y={-500} width={1000} height={1000} fill="#1a1a2e" />
-          {Array.from({ length: 21 }, (_, i) => {
-            const pos = -500 + i * 50;
-            return (
-              <g key={i}>
-                <line x1={pos} y1={-500} x2={pos} y2={500} stroke="#333" strokeWidth={0.5} />
-                <line x1={-500} y1={pos} x2={500} y2={pos} stroke="#333" strokeWidth={0.5} />
-              </g>
-            );
-          })}
-          <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fill="#666" fontSize={16}>
-            Map Viewer
-          </text>
+          <CubiomesMap
+            seed={seed}
+            transform={transform}
+            viewportWidth={viewport.width}
+            viewportHeight={viewport.height}
+          />
         </g>
       </svg>
     </Box>
