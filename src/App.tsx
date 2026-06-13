@@ -10,6 +10,8 @@ const darkTheme = createTheme({
   palette: { mode: 'dark' },
 });
 
+const DEFAULT_SEED = 0n;
+
 export default function App() {
   return (
     <ThemeProvider theme={darkTheme}>
@@ -22,7 +24,7 @@ export default function App() {
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer />
+        <MapViewer seed={DEFAULT_SEED} />
       </Box>
     </ThemeProvider>
   );
