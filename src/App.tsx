@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -29,12 +29,46 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
 import { Dimension, MCVersion, StructureType } from './CubiomesTS';
+import { MapDataFiles } from './MapDataFiles';
+import type { MapDataFile } from './MapDataFile';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
 });
 
 const DEFAULT_SEED = 6770262141636552371n;
+
+function formatCoord(n: number): string {
+  return Number.isNaN(n) ? '0' : n.toLocaleString('en-US');
+}
+
+function parseCoord(s: string): number {
+  return parseInt(s.replace(/,/g, ''), 10);
+}
+const mapDataFiles = new MapDataFiles();
+
+function loadStateFromFile(file: MapDataFile) {
+  const version = file.getNumber('mcVersion') as MCVersion | null;
+  const structures = file.getJSON<number[]>('enabledStructures');
+  const x = file.getNumber('centerX');
+  const z = file.getNumber('centerZ');
+  return {
+    mcVersion: version ?? MCVersion.MC_1_21,
+    enabledStructures: new Set<StructureType>(structures ?? []),
+    centerX: x ?? 0,
+    centerZ: z ?? 0,
+  };
+}
+
+function getInitialSeed(): bigint {
+  return mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
+}
+
+function getInitialState() {
+  const seed = getInitialSeed();
+  const file = mapDataFiles.getMapDataFile(seed);
+  return { seed, ...loadStateFromFile(file) };
+}
 
 interface StructureEntry { type: StructureType; label: string }
 interface StructureGroup { dimension: string; entries: StructureEntry[] }
@@ -89,21 +123,25 @@ const VERSION_ENTRIES: { version: MCVersion; label: string }[] = [
 ];
 
 export default function App() {
-  const [seed, setSeed] = useState(DEFAULT_SEED);
+  const initial = useMemo(getInitialState, []);
+  const [seed, setSeed] = useState(initial.seed);
   const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
-  const [mcVersion, setMcVersion] = useState<MCVersion>(MCVersion.MC_1_21);
-  const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
+  const [mcVersion, setMcVersion] = useState<MCVersion>(initial.mcVersion);
+  const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(initial.enabledStructures);
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
-  const [centerX, setCenterX] = useState('0');
-  const [centerZ, setCenterZ] = useState('0');
+  const [centerX, setCenterX] = useState(formatCoord(initial.centerX));
+  const [centerZ, setCenterZ] = useState(formatCoord(initial.centerZ));
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
+  const mapDataFileRef = useRef<MapDataFile>(mapDataFiles.getMapDataFile(seed));
   const isUserEditingCoords = useRef(false);
+  const coordsDirty = useRef(false);
+  const lastSavedCoords = useRef({ x: initial.centerX, z: initial.centerZ });
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -141,20 +179,50 @@ export default function App() {
     setSeedDialogOpen(true);
   }, [handleFileMenuClose]);
 
+  const saveCoords = useCallback(() => {
+    const x = parseCoord(centerX);
+    const z = parseCoord(centerZ);
+    if (!isNaN(x) && !isNaN(z) && (x !== lastSavedCoords.current.x || z !== lastSavedCoords.current.z)) {
+      mapDataFileRef.current.setNumber('centerX', x);
+      mapDataFileRef.current.setNumber('centerZ', z);
+      lastSavedCoords.current = { x, z };
+      coordsDirty.current = false;
+    }
+  }, [centerX, centerZ]);
+
+  const loadSeed = useCallback((newSeed: bigint) => {
+    if (coordsDirty.current) saveCoords();
+    const file = mapDataFiles.getMapDataFile(newSeed);
+    mapDataFileRef.current = file;
+    const state = loadStateFromFile(file);
+    coordsDirty.current = false;
+    lastSavedCoords.current = { x: state.centerX, z: state.centerZ };
+    setSeed(newSeed);
+    setMcVersion(state.mcVersion);
+    setEnabledStructures(state.enabledStructures);
+    setCenterX(formatCoord(state.centerX));
+    setCenterZ(formatCoord(state.centerZ));
+    if (state.centerX !== 0 || state.centerZ !== 0) {
+      setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
+    }
+  }, [saveCoords]);
+
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
     if (trimmed === '') return;
+    let newSeed: bigint;
     try {
-      setSeed(BigInt(trimmed));
+      newSeed = BigInt(trimmed);
     } catch {
       const hash = Array.from(new TextEncoder().encode(trimmed)).reduce(
         (acc, b) => (acc * 31 + b) | 0,
         0,
       );
-      setSeed(BigInt(hash));
+      newSeed = BigInt(hash);
     }
+    loadSeed(newSeed);
     setSeedDialogOpen(false);
-  }, [seedInput]);
+  }, [seedInput, loadSeed]);
 
   const handleGoToOrigin = useCallback(() => {
     handleFileMenuClose();
@@ -174,21 +242,34 @@ export default function App() {
       } else {
         next.add(structType);
       }
+      mapDataFileRef.current.setJSON('enabledStructures', Array.from(next));
       return next;
     });
   }, []);
 
   const handleCenterChange = useCallback((x: number, z: number) => {
-    if (!isUserEditingCoords.current) {
-      setCenterX(String(x));
-      setCenterZ(String(z));
-    }
+    if (isUserEditingCoords.current) return;
+    setCenterX(formatCoord(x));
+    setCenterZ(formatCoord(z));
+    coordsDirty.current = true;
   }, []);
+
+  useEffect(() => {
+    if (!coordsDirty.current) return;
+    const id = setTimeout(saveCoords, 1_000);
+    return () => clearTimeout(id);
+  }, [centerX, centerZ, saveCoords]);
+
+  useEffect(() => {
+    const flush = () => { if (coordsDirty.current) saveCoords(); };
+    window.addEventListener('beforeunload', flush);
+    return () => window.removeEventListener('beforeunload', flush);
+  }, [saveCoords]);
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
-    const x = parseInt(centerX, 10);
-    const z = parseInt(centerZ, 10);
+    const x = parseCoord(centerX);
+    const z = parseCoord(centerZ);
     if (!isNaN(x) && !isNaN(z)) {
       mapRef.current?.goToPosition(x, z);
     }
@@ -232,7 +313,7 @@ export default function App() {
               {VERSION_ENTRIES.map(({ version, label }) => (
                 <MenuItem
                   key={version}
-                  onClick={() => { setMcVersion(version); handleFileMenuClose(); }}
+                  onClick={() => { setMcVersion(version); mapDataFileRef.current.setNumber('mcVersion', version); handleFileMenuClose(); }}
                   dense
                 >
                   <Radio
@@ -350,13 +431,29 @@ export default function App() {
                 '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
               }}
             />
-            <Typography variant="body2" sx={{ opacity: 0.7 }}>
-              {hoveredBiome && <>Biome: {hoveredBiome} &nbsp;|&nbsp; </>}
-              Seed: {seed.toString()}
-            </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+        <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+          <Typography
+            variant="body2"
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              left: 8,
+              bgcolor: 'rgba(0, 0, 0, 0.6)',
+              color: 'rgba(255, 255, 255, 0.85)',
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            Seed: {seed.toString()}
+            {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
+          </Typography>
+        </Box>
       </Box>
 
       <Dialog

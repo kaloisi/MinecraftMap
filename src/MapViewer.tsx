@@ -14,6 +14,7 @@ export interface MapViewerProps {
   dimension: Dimension;
   mcVersion: MCVersion;
   enabledStructures: Set<StructureType>;
+  initialCenter?: { x: number; z: number };
   onBiomeHover?: (name: string | null) => void;
   onCenterChange?: (x: number, z: number) => void;
 }
@@ -27,7 +28,7 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, onBiomeHover, onCenterChange }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, onBiomeHover, onCenterChange }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -150,13 +151,17 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
     return () => observer.disconnect();
   }, []);
 
+  const initialCenterRef = useRef(initialCenter);
+
   useEffect(() => {
     if (initialized.current || viewport.width === 0 || viewport.height === 0) return;
     initialized.current = true;
+    const cx = initialCenterRef.current?.x ?? 0;
+    const cz = initialCenterRef.current?.z ?? 0;
     setTransform({
       scale: INITIAL_SCALE,
-      x: viewport.width / 2,
-      y: viewport.height / 2,
+      x: viewport.width / 2 - (cx / BIOME_SCALE) * INITIAL_SCALE,
+      y: viewport.height / 2 - (cz / BIOME_SCALE) * INITIAL_SCALE,
     });
   }, [viewport]);
 
