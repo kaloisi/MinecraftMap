@@ -10,6 +10,7 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Checkbox from '@mui/material/Checkbox';
+import Radio from '@mui/material/Radio';
 import Divider from '@mui/material/Divider';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -23,7 +24,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
-import { Dimension, StructureType } from './CubiomesTS';
+import { Dimension, MCVersion, StructureType } from './CubiomesTS';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
@@ -58,17 +59,27 @@ const STRUCTURE_ENTRIES: { type: StructureType; label: string }[] = [
   { type: StructureType.Trial_Chambers, label: 'Trial Chambers' },
 ];
 
+const VERSION_ENTRIES: { version: MCVersion; label: string }[] = [
+  { version: MCVersion.MC_1_18, label: '1.18' },
+  { version: MCVersion.MC_1_19, label: '1.19' },
+  { version: MCVersion.MC_1_20, label: '1.20' },
+  { version: MCVersion.MC_1_21, label: '1.21' },
+];
+
 export default function App() {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
+  const [mcVersion, setMcVersion] = useState<MCVersion>(MCVersion.MC_1_21);
   const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
+  const [versionMenuAnchor, setVersionMenuAnchor] = useState<null | HTMLElement>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
+  const versionMenuOpen = Boolean(versionMenuAnchor);
 
   const handleFileMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
     setFileMenuAnchor(e.currentTarget);
@@ -84,6 +95,14 @@ export default function App() {
 
   const handleStructMenuClose = useCallback(() => {
     setStructMenuAnchor(null);
+  }, []);
+
+  const handleVersionMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setVersionMenuAnchor(e.currentTarget);
+  }, []);
+
+  const handleVersionMenuClose = useCallback(() => {
+    setVersionMenuAnchor(null);
   }, []);
 
   const handleNewSeed = useCallback(() => {
@@ -188,6 +207,33 @@ export default function App() {
                 </MenuItem>
               ))}
             </Menu>
+            <Button
+              color="inherit"
+              onClick={handleVersionMenuOpen}
+              sx={{ textTransform: 'none', mr: 2 }}
+            >
+              Version
+            </Button>
+            <Menu
+              anchorEl={versionMenuAnchor}
+              open={versionMenuOpen}
+              onClose={handleVersionMenuClose}
+            >
+              {VERSION_ENTRIES.map(({ version, label }) => (
+                <MenuItem
+                  key={version}
+                  onClick={() => { setMcVersion(version); handleVersionMenuClose(); }}
+                  dense
+                >
+                  <Radio
+                    checked={mcVersion === version}
+                    size="small"
+                    sx={{ p: 0, mr: 1 }}
+                  />
+                  <ListItemText>{label}</ListItemText>
+                </MenuItem>
+              ))}
+            </Menu>
             <Select
               value={dimension}
               onChange={(e) => setDimension(e.target.value as Dimension)}
@@ -211,7 +257,7 @@ export default function App() {
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} />
+        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} />
       </Box>
 
       <Dialog
