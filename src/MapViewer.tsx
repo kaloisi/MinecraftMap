@@ -20,6 +20,7 @@ export interface MapViewerProps {
   onCenterChange?: (x: number, z: number) => void;
   onZoomChange?: (zoom: number) => void;
   onCursorChange?: (pos: { x: number; z: number } | null) => void;
+  onLocationClick?: (worldPos: { x: number; z: number }) => void;
 }
 
 export interface MapViewerHandle {
@@ -31,7 +32,7 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom ?? INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -133,6 +134,11 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
     isPanning.current = false;
   }, []);
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const world = screenToWorld(e.clientX, e.clientY);
+    if (world) onLocationClick?.(world);
+  }, [screenToWorld, onLocationClick]);
+
   const handlePointerLeave = useCallback(() => {
     setCursorWorld(null);
     onCursorChange?.(null);
@@ -186,6 +192,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
         width="100%"
         height="100%"
         onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

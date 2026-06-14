@@ -29,7 +29,12 @@ import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
-import { Dimension, MCVersion, StructureType } from './CubiomesTS';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableRow from '@mui/material/TableRow';
+import { Dimension, MCVersion, StructureType, isSlimeChunk, getStructureConfig, getStructurePos } from './CubiomesTS';
+import { lookupBiomeName } from './components/CubiomesMap';
 import { MapDataFiles } from './MapDataFiles';
 import type { MapDataFile } from './MapDataFile';
 
@@ -159,6 +164,16 @@ export default function App() {
   const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; z: number } | null>(null);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [locationDialogData, setLocationDialogData] = useState<{
+    blockX: number; blockZ: number;
+    chunkX: number; chunkZ: number;
+    regionX: number; regionZ: number;
+    biome: string;
+    slimeChunk: boolean;
+    nearbyStructures: { label: string; x: number; z: number; dist: number }[];
+    dimensionLabel: string;
+  } | null>(null);
   const [mapName, setMapName] = useState(initial.mapName);
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [propsName, setPropsName] = useState('');
@@ -287,6 +302,63 @@ export default function App() {
   const handleCopySeedFromFooter = useCallback(() => {
     navigator.clipboard.writeText(seed.toString());
   }, [seed]);
+
+  const NETHER_RATIO = 8;
+  const BIOME_SCALE = 4;
+
+  const handleLocationClick = useCallback((worldPos: { x: number; z: number }) => {
+    const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
+    const blockX = Math.floor(worldPos.x * BIOME_SCALE / cs);
+    const blockZ = Math.floor(worldPos.z * BIOME_SCALE / cs);
+    const chunkX = Math.floor(blockX / 16);
+    const chunkZ = Math.floor(blockZ / 16);
+    const regionX = Math.floor(chunkX / 32);
+    const regionZ = Math.floor(chunkZ / 32);
+
+    const biome = lookupBiomeName(worldPos.x, worldPos.z) ?? 'Unknown';
+
+    const slime = dimension === Dimension.DIM_OVERWORLD
+      ? isSlimeChunk(seed, chunkX, chunkZ)
+      : false;
+
+    const dimLabel = dimension === Dimension.DIM_NETHER ? 'The Nether'
+      : dimension === Dimension.DIM_END ? 'The End' : 'Overworld';
+
+    const nearby: { label: string; x: number; z: number; dist: number }[] = [];
+    const SEARCH_RADIUS = 10;
+    for (const group of STRUCTURE_GROUPS) {
+      for (const entry of group.entries) {
+        const config = getStructureConfig(entry.type, mcVersion);
+        if (!config || config.dim !== dimension) continue;
+        const regionBlockSize = config.regionSize * 16;
+        const minReg = Math.floor((blockX - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const maxReg = Math.ceil((blockX + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const minRegZ = Math.floor((blockZ - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const maxRegZ = Math.ceil((blockZ + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        for (let rz = minRegZ; rz <= maxRegZ; rz++) {
+          for (let rx = minReg; rx <= maxReg; rx++) {
+            const pos = getStructurePos(entry.type, mcVersion, seed, rx, rz);
+            if (pos) {
+              const dx = pos.x - blockX;
+              const dz = pos.z - blockZ;
+              const dist = Math.sqrt(dx * dx + dz * dz);
+              if (dist < 1600) {
+                nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
+              }
+            }
+          }
+        }
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    setLocationDialogData({
+      blockX, blockZ, chunkX, chunkZ, regionX, regionZ,
+      biome, slimeChunk: slime, nearbyStructures: nearby.slice(0, 15),
+      dimensionLabel: dimLabel,
+    });
+    setLocationDialogOpen(true);
+  }, [seed, dimension, mcVersion]);
 
   const handleOpenProperties = useCallback(() => {
     handleFileMenuClose();
@@ -567,7 +639,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} />
           <Typography
             variant="body2"
             sx={{
@@ -659,6 +731,66 @@ export default function App() {
         <DialogActions>
           <Button onClick={() => setPropsDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSaveProperties} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={locationDialogOpen} onClose={() => setLocationDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Location Details</DialogTitle>
+        {locationDialogData && (
+          <DialogContent>
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', width: 140 }}>Dimension</TableCell>
+                  <TableCell>{locationDialogData.dimensionLabel}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Block</TableCell>
+                  <TableCell>X: {locationDialogData.blockX}, Z: {locationDialogData.blockZ}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Chunk</TableCell>
+                  <TableCell>X: {locationDialogData.chunkX}, Z: {locationDialogData.chunkZ}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Region</TableCell>
+                  <TableCell>r.{locationDialogData.regionX}.{locationDialogData.regionZ}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Biome</TableCell>
+                  <TableCell>{locationDialogData.biome}</TableCell>
+                </TableRow>
+                {dimension === Dimension.DIM_OVERWORLD && (
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Slime Chunk</TableCell>
+                    <TableCell>{locationDialogData.slimeChunk ? 'Yes' : 'No'}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            {locationDialogData.nearbyStructures.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Nearby Structures (within 1600 blocks)</Typography>
+                <Table size="small">
+                  <TableBody>
+                    {locationDialogData.nearbyStructures.map((s, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{s.label}</TableCell>
+                        <TableCell>X: {s.x}, Z: {s.z}</TableCell>
+                        <TableCell align="right">{s.dist} blocks</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            )}
+            {locationDialogData.nearbyStructures.length === 0 && (
+              <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>No structures found within 1600 blocks.</Typography>
+            )}
+          </DialogContent>
+        )}
+        <DialogActions>
+          <Button onClick={() => setLocationDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </ThemeProvider>
