@@ -132,6 +132,8 @@ export default function App() {
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
+  const [versionMenuAnchor, setVersionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
   const [centerX, setCenterX] = useState(formatCoord(initial.centerX));
   const [centerZ, setCenterZ] = useState(formatCoord(initial.centerZ));
@@ -151,6 +153,8 @@ export default function App() {
 
   const handleFileMenuClose = useCallback(() => {
     setFileMenuAnchor(null);
+    setVersionMenuAnchor(null);
+    setRecentMenuAnchor(null);
   }, []);
 
   const handleStructMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
@@ -171,6 +175,24 @@ export default function App() {
   const handleSubMenuClose = useCallback(() => {
     setSubMenuAnchor(null);
     setActiveGroupIdx(-1);
+  }, []);
+
+  const handleVersionMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setVersionMenuAnchor(e.currentTarget);
+    setRecentMenuAnchor(null);
+  }, []);
+
+  const handleVersionMenuClose = useCallback(() => {
+    setVersionMenuAnchor(null);
+  }, []);
+
+  const handleRecentMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setRecentMenuAnchor(e.currentTarget);
+    setVersionMenuAnchor(null);
+  }, []);
+
+  const handleRecentMenuClose = useCallback(() => {
+    setRecentMenuAnchor(null);
   }, []);
 
   const handleNewSeed = useCallback(() => {
@@ -289,7 +311,7 @@ export default function App() {
               onClick={handleFileMenuOpen}
               sx={{ textTransform: 'none', mr: 1 }}
             >
-              File
+              Maps
             </Button>
             <Menu
               anchorEl={fileMenuAnchor}
@@ -310,21 +332,85 @@ export default function App() {
                 <ListItemText>Copy Seed</ListItemText>
               </MenuItem>
               <Divider />
-              {VERSION_ENTRIES.map(({ version, label }) => (
-                <MenuItem
-                  key={version}
-                  onClick={() => { setMcVersion(version); mapDataFileRef.current.setNumber('mcVersion', version); handleFileMenuClose(); }}
-                  dense
-                >
-                  <Radio
-                    checked={mcVersion === version}
-                    size="small"
-                    sx={{ p: 0, mr: 1 }}
-                  />
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              ))}
+              <MenuItem
+                onMouseEnter={handleVersionMenuOpen}
+                onClick={handleVersionMenuOpen}
+                selected={versionMenuAnchor !== null}
+              >
+                <ListItemText>MC Version</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
+              </MenuItem>
+              <MenuItem
+                onMouseEnter={handleRecentMenuOpen}
+                onClick={handleRecentMenuOpen}
+                selected={recentMenuAnchor !== null}
+              >
+                <ListItemText>Recent Maps</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
+              </MenuItem>
             </Menu>
+            <Popover
+              open={versionMenuAnchor !== null}
+              anchorEl={versionMenuAnchor}
+              onClose={handleVersionMenuClose}
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              disableAutoFocus
+              disableEnforceFocus
+              disableRestoreFocus
+              slotProps={{
+                paper: { style: { maxHeight: '80vh' }, onMouseLeave: handleVersionMenuClose },
+                root: { style: { pointerEvents: 'none' } },
+              }}
+              sx={{ pointerEvents: 'none' }}
+            >
+              <Paper sx={{ pointerEvents: 'auto' }}>
+                <MenuList dense>
+                  {VERSION_ENTRIES.map(({ version, label }) => (
+                    <MenuItem
+                      key={version}
+                      onClick={() => { setMcVersion(version); mapDataFileRef.current.setNumber('mcVersion', version); handleFileMenuClose(); }}
+                    >
+                      <Radio
+                        checked={mcVersion === version}
+                        size="small"
+                        sx={{ p: 0, mr: 1 }}
+                      />
+                      <ListItemText>{label}</ListItemText>
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Paper>
+            </Popover>
+            <Popover
+              open={recentMenuAnchor !== null}
+              anchorEl={recentMenuAnchor}
+              onClose={handleRecentMenuClose}
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              disableAutoFocus
+              disableEnforceFocus
+              disableRestoreFocus
+              slotProps={{
+                paper: { style: { maxHeight: '80vh' }, onMouseLeave: handleRecentMenuClose },
+                root: { style: { pointerEvents: 'none' } },
+              }}
+              sx={{ pointerEvents: 'none' }}
+            >
+              <Paper sx={{ pointerEvents: 'auto' }}>
+                <MenuList dense>
+                  {Array.from(mapDataFiles.getExistingSeeds()).map((s) => (
+                    <MenuItem
+                      key={s.toString()}
+                      onClick={() => { loadSeed(s); handleFileMenuClose(); }}
+                      selected={s === seed}
+                    >
+                      <ListItemText>{s.toString()}</ListItemText>
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Paper>
+            </Popover>
             <Button
               color="inherit"
               onClick={handleStructMenuOpen}
