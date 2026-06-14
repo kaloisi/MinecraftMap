@@ -219,7 +219,7 @@ export default function App() {
               anchorEl={structMenuAnchor}
               open={structMenuOpen}
               onClose={handleStructMenuClose}
-              slotProps={{ paper: { style: { maxHeight: 400 } } }}
+              slotProps={{ paper: { style: { maxHeight: '80vh' } } }}
             >
               {STRUCTURE_ENTRIES.map(({ type, label }) => (
                 <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
