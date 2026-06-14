@@ -10,7 +10,6 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Checkbox from '@mui/material/Checkbox';
-import Radio from '@mui/material/Radio';
 import Divider from '@mui/material/Divider';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -18,13 +17,15 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
+import InputLabel from '@mui/material/InputLabel';
+import FormControl from '@mui/material/FormControl';
 import Popover from '@mui/material/Popover';
 import MenuList from '@mui/material/MenuList';
 import Paper from '@mui/material/Paper';
+import IconButton from '@mui/material/IconButton';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import AddIcon from '@mui/icons-material/Add';
-import HomeIcon from '@mui/icons-material/Home';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
@@ -47,27 +48,50 @@ function parseCoord(s: string): number {
 }
 const mapDataFiles = new MapDataFiles();
 
-function loadStateFromFile(file: MapDataFile) {
+function loadStateFromFile(file: MapDataFile, seed: bigint) {
   const version = file.getNumber('mcVersion') as MCVersion | null;
   const structures = file.getJSON<number[]>('enabledStructures');
   const x = file.getNumber('centerX');
   const z = file.getNumber('centerZ');
+  const name = file.getString('mapName');
+  const zoom = file.getNumber('zoom');
   return {
     mcVersion: version ?? MCVersion.MC_1_21,
     enabledStructures: new Set<StructureType>(structures ?? []),
     centerX: x ?? 0,
     centerZ: z ?? 0,
+    mapName: name ?? seed.toString(),
+    zoom: zoom ?? 4,
   };
 }
 
+function parseSeedFromHash(): bigint | null {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#seed=')) return null;
+  const raw = decodeURIComponent(hash.slice(6));
+  if (!raw) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setSeedInHash(seed: bigint) {
+  const newHash = `#seed=${seed.toString()}`;
+  if (window.location.hash !== newHash) {
+    history.replaceState(null, '', newHash);
+  }
+}
+
 function getInitialSeed(): bigint {
-  return mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
+  return parseSeedFromHash() ?? mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
 }
 
 function getInitialState() {
   const seed = getInitialSeed();
   const file = mapDataFiles.getMapDataFile(seed);
-  return { seed, ...loadStateFromFile(file) };
+  return { seed, ...loadStateFromFile(file, seed) };
 }
 
 interface StructureEntry { type: StructureType; label: string }
@@ -132,7 +156,12 @@ export default function App() {
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
+  const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
+  const [mapName, setMapName] = useState(initial.mapName);
+  const [propsDialogOpen, setPropsDialogOpen] = useState(false);
+  const [propsName, setPropsName] = useState('');
+  const [propsVersion, setPropsVersion] = useState<MCVersion>(MCVersion.MC_1_21);
   const [centerX, setCenterX] = useState(formatCoord(initial.centerX));
   const [centerZ, setCenterZ] = useState(formatCoord(initial.centerZ));
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
@@ -142,6 +171,9 @@ export default function App() {
   const isUserEditingCoords = useRef(false);
   const coordsDirty = useRef(false);
   const lastSavedCoords = useRef({ x: initial.centerX, z: initial.centerZ });
+  const zoomDirty = useRef(false);
+  const lastSavedZoom = useRef(initial.zoom);
+  const currentZoom = useRef(initial.zoom);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -151,6 +183,7 @@ export default function App() {
 
   const handleFileMenuClose = useCallback(() => {
     setFileMenuAnchor(null);
+    setRecentMenuAnchor(null);
   }, []);
 
   const handleStructMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
@@ -173,6 +206,14 @@ export default function App() {
     setActiveGroupIdx(-1);
   }, []);
 
+  const handleRecentMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setRecentMenuAnchor(e.currentTarget);
+  }, []);
+
+  const handleRecentMenuClose = useCallback(() => {
+    setRecentMenuAnchor(null);
+  }, []);
+
   const handleNewSeed = useCallback(() => {
     handleFileMenuClose();
     setSeedInput('');
@@ -190,22 +231,36 @@ export default function App() {
     }
   }, [centerX, centerZ]);
 
+  const saveZoom = useCallback(() => {
+    if (currentZoom.current !== lastSavedZoom.current) {
+      mapDataFileRef.current.setNumber('zoom', currentZoom.current);
+      lastSavedZoom.current = currentZoom.current;
+      zoomDirty.current = false;
+    }
+  }, []);
+
   const loadSeed = useCallback((newSeed: bigint) => {
     if (coordsDirty.current) saveCoords();
+    if (zoomDirty.current) saveZoom();
     const file = mapDataFiles.getMapDataFile(newSeed);
     mapDataFileRef.current = file;
-    const state = loadStateFromFile(file);
+    const state = loadStateFromFile(file, newSeed);
     coordsDirty.current = false;
     lastSavedCoords.current = { x: state.centerX, z: state.centerZ };
+    zoomDirty.current = false;
+    lastSavedZoom.current = state.zoom;
+    currentZoom.current = state.zoom;
     setSeed(newSeed);
+    setSeedInHash(newSeed);
     setMcVersion(state.mcVersion);
+    setMapName(state.mapName);
     setEnabledStructures(state.enabledStructures);
     setCenterX(formatCoord(state.centerX));
     setCenterZ(formatCoord(state.centerZ));
     if (state.centerX !== 0 || state.centerZ !== 0) {
       setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
     }
-  }, [saveCoords]);
+  }, [saveCoords, saveZoom]);
 
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
@@ -225,14 +280,28 @@ export default function App() {
   }, [seedInput, loadSeed]);
 
   const handleGoToOrigin = useCallback(() => {
-    handleFileMenuClose();
     mapRef.current?.goToOrigin();
-  }, [handleFileMenuClose]);
+  }, []);
 
-  const handleCopySeed = useCallback(() => {
-    handleFileMenuClose();
+  const handleCopySeedFromFooter = useCallback(() => {
     navigator.clipboard.writeText(seed.toString());
-  }, [handleFileMenuClose, seed]);
+  }, [seed]);
+
+  const handleOpenProperties = useCallback(() => {
+    handleFileMenuClose();
+    setPropsName(mapName);
+    setPropsVersion(mcVersion);
+    setPropsDialogOpen(true);
+  }, [handleFileMenuClose, mapName, mcVersion]);
+
+  const handleSaveProperties = useCallback(() => {
+    const name = propsName.trim() || seed.toString();
+    setMapName(name);
+    mapDataFileRef.current.setString('mapName', name);
+    setMcVersion(propsVersion);
+    mapDataFileRef.current.setNumber('mcVersion', propsVersion);
+    setPropsDialogOpen(false);
+  }, [propsName, propsVersion, seed]);
 
   const handleToggleStructure = useCallback((structType: StructureType) => {
     setEnabledStructures((prev) => {
@@ -254,6 +323,14 @@ export default function App() {
     coordsDirty.current = true;
   }, []);
 
+  const [zoomTick, setZoomTick] = useState(0);
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    currentZoom.current = zoom;
+    zoomDirty.current = true;
+    setZoomTick((t) => t + 1);
+  }, []);
+
   useEffect(() => {
     if (!coordsDirty.current) return;
     const id = setTimeout(saveCoords, 1_000);
@@ -261,10 +338,35 @@ export default function App() {
   }, [centerX, centerZ, saveCoords]);
 
   useEffect(() => {
-    const flush = () => { if (coordsDirty.current) saveCoords(); };
+    if (!zoomDirty.current) return;
+    const id = setTimeout(saveZoom, 1_000);
+    return () => clearTimeout(id);
+  }, [zoomTick, saveZoom]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (coordsDirty.current) saveCoords();
+      if (zoomDirty.current) saveZoom();
+    };
     window.addEventListener('beforeunload', flush);
     return () => window.removeEventListener('beforeunload', flush);
-  }, [saveCoords]);
+  }, [saveCoords, saveZoom]);
+
+  useEffect(() => {
+    setSeedInHash(seed);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashSeed = parseSeedFromHash();
+      if (hashSeed !== null && hashSeed !== seed) {
+        loadSeed(hashSeed);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [seed, loadSeed]);
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
@@ -289,7 +391,7 @@ export default function App() {
               onClick={handleFileMenuOpen}
               sx={{ textTransform: 'none', mr: 1 }}
             >
-              File
+              Maps
             </Button>
             <Menu
               anchorEl={fileMenuAnchor}
@@ -300,31 +402,52 @@ export default function App() {
                 <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>New Seed…</ListItemText>
               </MenuItem>
-              <MenuItem onClick={handleGoToOrigin}>
-                <ListItemIcon><HomeIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>Go to Origin</ListItemText>
+              <MenuItem
+                onMouseEnter={handleRecentMenuOpen}
+                onClick={handleRecentMenuOpen}
+                selected={recentMenuAnchor !== null}
+              >
+                <ListItemText>Recent Maps</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
               </MenuItem>
               <Divider />
-              <MenuItem onClick={handleCopySeed}>
-                <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>Copy Seed</ListItemText>
+              <MenuItem onClick={handleOpenProperties}>
+                <ListItemText>Properties</ListItemText>
               </MenuItem>
-              <Divider />
-              {VERSION_ENTRIES.map(({ version, label }) => (
-                <MenuItem
-                  key={version}
-                  onClick={() => { setMcVersion(version); mapDataFileRef.current.setNumber('mcVersion', version); handleFileMenuClose(); }}
-                  dense
-                >
-                  <Radio
-                    checked={mcVersion === version}
-                    size="small"
-                    sx={{ p: 0, mr: 1 }}
-                  />
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              ))}
             </Menu>
+            <Popover
+              open={recentMenuAnchor !== null}
+              anchorEl={recentMenuAnchor}
+              onClose={handleRecentMenuClose}
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              disableAutoFocus
+              disableEnforceFocus
+              disableRestoreFocus
+              slotProps={{
+                paper: { style: { maxHeight: '80vh' }, onMouseLeave: handleRecentMenuClose },
+                root: { style: { pointerEvents: 'none' } },
+              }}
+              sx={{ pointerEvents: 'none' }}
+            >
+              <Paper sx={{ pointerEvents: 'auto' }}>
+                <MenuList dense>
+                  {Array.from(mapDataFiles.getExistingSeeds()).map((s) => {
+                    const file = mapDataFiles.getMapDataFile(s);
+                    const name = file.getString('mapName') || s.toString();
+                    return (
+                      <MenuItem
+                        key={s.toString()}
+                        onClick={() => { loadSeed(s); handleFileMenuClose(); }}
+                        selected={s === seed}
+                      >
+                        <ListItemText>{name}</ListItemText>
+                      </MenuItem>
+                    );
+                  })}
+                </MenuList>
+              </Paper>
+            </Popover>
             <Button
               color="inherit"
               onClick={handleStructMenuOpen}
@@ -425,16 +548,25 @@ export default function App() {
               onKeyDown={(e) => { if (e.key === 'Enter') handleCoordsSubmit(); }}
               sx={{
                 width: 90,
-                mr: 2,
+                mr: 0.5,
                 input: { color: 'inherit', py: 0.5, fontSize: '0.875rem' },
                 '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
                 '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
               }}
             />
+            <IconButton
+              color="inherit"
+              size="small"
+              onClick={handleGoToOrigin}
+              title="Go to Origin"
+              sx={{ mr: 2 }}
+            >
+              <LocationSearchingIcon fontSize="small" />
+            </IconButton>
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} />
           <Typography
             variant="body2"
             sx={{
@@ -446,11 +578,23 @@ export default function App() {
               px: 1.5,
               py: 0.5,
               borderRadius: 1,
-              pointerEvents: 'none',
               userSelect: 'none',
             }}
           >
-            Seed: {seed.toString()}
+            Seed:{' '}
+            <Box
+              component="span"
+              onClick={handleCopySeedFromFooter}
+              sx={{
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textDecorationColor: 'rgba(255,255,255,0.4)',
+                '&:hover': { textDecorationColor: 'rgba(255,255,255,0.85)' },
+              }}
+              title="Click to copy seed"
+            >
+              {seed.toString()}
+            </Box>
             {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
           </Typography>
         </Box>
@@ -478,6 +622,41 @@ export default function App() {
         <DialogActions>
           <Button onClick={() => setSeedDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSeedSubmit} variant="contained">Load</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={propsDialogOpen}
+        onClose={() => setPropsDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Map Properties</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Map Name"
+            value={propsName}
+            onChange={(e) => setPropsName(e.target.value)}
+            margin="dense"
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>MC Version</InputLabel>
+            <Select
+              value={propsVersion}
+              label="MC Version"
+              onChange={(e) => setPropsVersion(e.target.value as MCVersion)}
+            >
+              {VERSION_ENTRIES.map(({ version, label }) => (
+                <MenuItem key={version} value={version}>{label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPropsDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveProperties} variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
     </ThemeProvider>

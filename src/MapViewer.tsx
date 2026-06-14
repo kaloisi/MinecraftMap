@@ -15,8 +15,10 @@ export interface MapViewerProps {
   mcVersion: MCVersion;
   enabledStructures: Set<StructureType>;
   initialCenter?: { x: number; z: number };
+  initialZoom?: number;
   onBiomeHover?: (name: string | null) => void;
   onCenterChange?: (x: number, z: number) => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
 export interface MapViewerHandle {
@@ -28,9 +30,9 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, onBiomeHover, onCenterChange }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
+  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom ?? INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [cursorWorld, setCursorWorld] = useState<{ x: number; z: number } | null>(null);
   const initialized = useRef(false);
@@ -57,14 +59,19 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   }), [viewport]);
 
   useEffect(() => {
-    if (!onCenterChange || viewport.width === 0) return;
-    const centerWorldX = (viewport.width / 2 - transform.x) / transform.scale;
-    const centerWorldZ = (viewport.height / 2 - transform.y) / transform.scale;
-    onCenterChange(
-      Math.round(centerWorldX * BIOME_SCALE),
-      Math.round(centerWorldZ * BIOME_SCALE),
-    );
-  }, [transform, viewport, onCenterChange]);
+    if (viewport.width === 0) return;
+    if (onCenterChange) {
+      const centerWorldX = (viewport.width / 2 - transform.x) / transform.scale;
+      const centerWorldZ = (viewport.height / 2 - transform.y) / transform.scale;
+      onCenterChange(
+        Math.round(centerWorldX * BIOME_SCALE),
+        Math.round(centerWorldZ * BIOME_SCALE),
+      );
+    }
+    if (onZoomChange) {
+      onZoomChange(transform.scale);
+    }
+  }, [transform, viewport, onCenterChange, onZoomChange]);
 
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -152,16 +159,18 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   }, []);
 
   const initialCenterRef = useRef(initialCenter);
+  const initialZoomRef = useRef(initialZoom);
 
   useEffect(() => {
     if (initialized.current || viewport.width === 0 || viewport.height === 0) return;
     initialized.current = true;
     const cx = initialCenterRef.current?.x ?? 0;
     const cz = initialCenterRef.current?.z ?? 0;
+    const scale = initialZoomRef.current ?? INITIAL_SCALE;
     setTransform({
-      scale: INITIAL_SCALE,
-      x: viewport.width / 2 - (cx / BIOME_SCALE) * INITIAL_SCALE,
-      y: viewport.height / 2 - (cz / BIOME_SCALE) * INITIAL_SCALE,
+      scale,
+      x: viewport.width / 2 - (cx / BIOME_SCALE) * scale,
+      y: viewport.height / 2 - (cz / BIOME_SCALE) * scale,
     });
   }, [viewport]);
 
