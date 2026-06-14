@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, memo, useRef } from 'react';
 import {
   biomeColor,
+  biomeName,
   setupGenerator,
   applySeed,
   allocCache,
@@ -23,6 +24,23 @@ export interface CubiomesMapProps {
   /** SVG viewport dimensions in pixels. */
   viewportWidth: number;
   viewportHeight: number;
+  /** World-space cursor position, or null when cursor is outside the map. */
+  cursorWorld: { x: number; z: number } | null;
+  /** Called with the biome name under the cursor. */
+  onBiomeHover?: (name: string | null) => void;
+}
+
+export function lookupBiomeName(worldX: number, worldZ: number): string | null {
+  const tx = Math.floor(worldX / TILE_SIZE);
+  const tz = Math.floor(worldZ / TILE_SIZE);
+  const key = tileKeyStr(tx, tz);
+  const tile = tileCache.get(key);
+  if (!tile) return null;
+  const lx = Math.floor(worldX) - tx * TILE_SIZE;
+  const lz = Math.floor(worldZ) - tz * TILE_SIZE;
+  if (lx < 0 || lx >= TILE_SIZE || lz < 0 || lz >= TILE_SIZE) return null;
+  const biomeId = tile[lz * TILE_SIZE + lx];
+  return biomeName(biomeId);
 }
 
 const TILE_SIZE = 16;
@@ -293,9 +311,20 @@ export default function CubiomesMap({
   transform,
   viewportWidth,
   viewportHeight,
+  cursorWorld,
+  onBiomeHover,
 }: CubiomesMapProps) {
   const generator = useMemo(() => getGenerator(seed, dimension, mcVersion), [seed, dimension, mcVersion]);
   const [asyncVersion, setAsyncVersion] = useState(0);
+
+  useEffect(() => {
+    if (!onBiomeHover) return;
+    if (!cursorWorld) {
+      onBiomeHover(null);
+      return;
+    }
+    onBiomeHover(lookupBiomeName(cursorWorld.x, cursorWorld.z));
+  }, [cursorWorld, onBiomeHover, asyncVersion]);
   const [structureMarkers, setStructureMarkers] = useState<StructureMarker[]>([]);
   const structureGenId = useRef(0);
 

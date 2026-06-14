@@ -73,6 +73,7 @@ export default function App() {
   const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
+  const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
@@ -232,10 +233,11 @@ export default function App() {
             <Box sx={{ flexGrow: 1 }} />
             <Typography variant="body2" sx={{ opacity: 0.7 }}>
               Seed: {seed.toString()}
+              {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} />
+        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} />
       </Box>
 
       <Dialog

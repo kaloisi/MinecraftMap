@@ -14,6 +14,7 @@ export interface MapViewerProps {
   dimension: Dimension;
   mcVersion: MCVersion;
   enabledStructures: Set<StructureType>;
+  onBiomeHover?: (name: string | null) => void;
 }
 
 export interface MapViewerHandle {
@@ -22,13 +23,16 @@ export interface MapViewerHandle {
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, onBiomeHover }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [cursorWorld, setCursorWorld] = useState<{ x: number; z: number } | null>(null);
   const initialized = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
 
   useImperativeHandle(ref, () => ({
     goToOrigin() {
@@ -39,6 +43,19 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
       });
     },
   }), [viewport]);
+
+  const screenToWorld = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const t = transformRef.current;
+    return {
+      x: (sx - t.x) / t.scale,
+      z: (sy - t.y) / t.scale,
+    };
+  }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -69,15 +86,22 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const world = screenToWorld(e.clientX, e.clientY);
+    if (world) setCursorWorld(world);
+
     if (!isPanning.current) return;
     const dx = e.clientX - panStart.current.x;
     const dy = e.clientY - panStart.current.y;
     panStart.current = { x: e.clientX, y: e.clientY };
     setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-  }, []);
+  }, [screenToWorld]);
 
   const handlePointerUp = useCallback(() => {
     isPanning.current = false;
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    setCursorWorld(null);
   }, []);
 
   useEffect(() => {
@@ -126,6 +150,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         style={{ display: 'block', touchAction: 'none', background: '#121212' }}
       >
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
@@ -137,6 +162,8 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
             transform={transform}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}
+            cursorWorld={cursorWorld}
+            onBiomeHover={onBiomeHover}
           />
         </g>
       </svg>
