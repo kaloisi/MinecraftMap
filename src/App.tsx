@@ -158,6 +158,7 @@ export default function App() {
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
   const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; z: number } | null>(null);
   const [mapName, setMapName] = useState(initial.mapName);
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [propsName, setPropsName] = useState('');
@@ -566,7 +567,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} />
           <Typography
             variant="body2"
             sx={{
@@ -595,6 +596,7 @@ export default function App() {
             >
               {seed.toString()}
             </Box>
+            {cursorPos && <> &nbsp;|&nbsp; X: {Math.floor(cursorPos.x * 4 / (dimension === Dimension.DIM_NETHER ? 8 : 1))}, Z: {Math.floor(cursorPos.z * 4 / (dimension === Dimension.DIM_NETHER ? 8 : 1))}</>}
             {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
           </Typography>
         </Box>
