@@ -407,13 +407,29 @@ export default function App() {
                 '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
               }}
             />
-            <Typography variant="body2" sx={{ opacity: 0.7 }}>
-              {hoveredBiome && <>Biome: {hoveredBiome} &nbsp;|&nbsp; </>}
-              Seed: {seed.toString()}
-            </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+        <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden' }}>
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+          <Typography
+            variant="body2"
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              left: 8,
+              bgcolor: 'rgba(0, 0, 0, 0.6)',
+              color: 'rgba(255, 255, 255, 0.85)',
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            Seed: {seed.toString()}
+            {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
+          </Typography>
+        </Box>
       </Box>
 
       <Dialog
