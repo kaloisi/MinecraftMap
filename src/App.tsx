@@ -313,6 +313,11 @@ export default function App() {
   const BIOME_SCALE = 4;
 
   const handleLocationClick = useCallback((worldPos: { x: number; z: number }) => {
+    if (locationDialogOpen) {
+      setLocationDialogOpen(false);
+      setHoveredStructureIndex(null);
+      return;
+    }
     setHoveredStructureIndex(null);
     const owBlockX = Math.floor(worldPos.x * BIOME_SCALE);
     const owBlockZ = Math.floor(worldPos.z * BIOME_SCALE);
@@ -372,7 +377,7 @@ export default function App() {
       dimensionLabel: dimLabel,
     });
     setLocationDialogOpen(true);
-  }, [seed, dimension, mcVersion]);
+  }, [seed, dimension, mcVersion, locationDialogOpen]);
 
   const handleOpenProperties = useCallback(() => {
     handleFileMenuClose();
@@ -755,7 +760,7 @@ export default function App() {
         open={locationDialogOpen}
         onClose={() => { setLocationDialogOpen(false); setHoveredStructureIndex(null); }}
         variant="persistent"
-        sx={{ '& .MuiDrawer-paper': { width: 340, boxSizing: 'border-box' } }}
+        sx={{ '& .MuiDrawer-paper': { width: 390, boxSizing: 'border-box' } }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
           <Typography variant="h6">Location Details</Typography>
