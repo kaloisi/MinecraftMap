@@ -1,6 +1,7 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Box from '@mui/material/Box';
 import CubiomesMap from './components/CubiomesMap';
+import type { Dimension, MCVersion, StructureType } from './CubiomesTS';
 
 export interface Transform {
   x: number;
@@ -10,17 +11,72 @@ export interface Transform {
 
 export interface MapViewerProps {
   seed: bigint;
+  dimension: Dimension;
+  mcVersion: MCVersion;
+  enabledStructures: Set<StructureType>;
+  onBiomeHover?: (name: string | null) => void;
+  onCenterChange?: (x: number, z: number) => void;
 }
+
+export interface MapViewerHandle {
+  goToOrigin: () => void;
+  goToPosition: (blockX: number, blockZ: number) => void;
+}
+
+const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-export default function MapViewer({ seed }: MapViewerProps) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, onBiomeHover, onCenterChange }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [cursorWorld, setCursorWorld] = useState<{ x: number; z: number } | null>(null);
   const initialized = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  useImperativeHandle(ref, () => ({
+    goToOrigin() {
+      setTransform({
+        scale: INITIAL_SCALE,
+        x: viewport.width / 2,
+        y: viewport.height / 2,
+      });
+    },
+    goToPosition(blockX: number, blockZ: number) {
+      setTransform((prev) => ({
+        scale: prev.scale,
+        x: viewport.width / 2 - (blockX / BIOME_SCALE) * prev.scale,
+        y: viewport.height / 2 - (blockZ / BIOME_SCALE) * prev.scale,
+      }));
+    },
+  }), [viewport]);
+
+  useEffect(() => {
+    if (!onCenterChange || viewport.width === 0) return;
+    const centerWorldX = (viewport.width / 2 - transform.x) / transform.scale;
+    const centerWorldZ = (viewport.height / 2 - transform.y) / transform.scale;
+    onCenterChange(
+      Math.round(centerWorldX * BIOME_SCALE),
+      Math.round(centerWorldZ * BIOME_SCALE),
+    );
+  }, [transform, viewport, onCenterChange]);
+
+  const screenToWorld = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const t = transformRef.current;
+    return {
+      x: (sx - t.x) / t.scale,
+      z: (sy - t.y) / t.scale,
+    };
+  }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -51,15 +107,22 @@ export default function MapViewer({ seed }: MapViewerProps) {
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const world = screenToWorld(e.clientX, e.clientY);
+    if (world) setCursorWorld(world);
+
     if (!isPanning.current) return;
     const dx = e.clientX - panStart.current.x;
     const dy = e.clientY - panStart.current.y;
     panStart.current = { x: e.clientX, y: e.clientY };
     setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-  }, []);
+  }, [screenToWorld]);
 
   const handlePointerUp = useCallback(() => {
     isPanning.current = false;
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    setCursorWorld(null);
   }, []);
 
   useEffect(() => {
@@ -108,17 +171,25 @@ export default function MapViewer({ seed }: MapViewerProps) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         style={{ display: 'block', touchAction: 'none', background: '#121212' }}
       >
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
           <CubiomesMap
             seed={seed}
+            dimension={dimension}
+            mcVersion={mcVersion}
+            enabledStructures={enabledStructures}
             transform={transform}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}
+            cursorWorld={cursorWorld}
+            onBiomeHover={onBiomeHover}
           />
         </g>
       </svg>
     </Box>
   );
-}
+});
+
+export default MapViewer;

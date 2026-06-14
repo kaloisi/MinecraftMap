@@ -3,7 +3,7 @@ export type { Range } from './types';
 export { Dimension } from './types';
 export type { Generator } from './generator';
 export { setupGenerator, applySeed, genBiomes, getBiomeAt, allocCache, GeneratorFlags } from './generator';
-export { biomeColor, BIOME_COLORS } from './biomeColors';
+export { biomeColor, biomeName, BIOME_COLORS } from './biomeColors';
 export type { SeedBox, Xoroshiro } from './rng';
 export {
   rotl64, rotr32, floordiv,
