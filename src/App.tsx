@@ -248,15 +248,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => {
+    const id = setTimeout(() => {
       const x = parseCoord(centerX);
       const z = parseCoord(centerZ);
       if (!isNaN(x) && !isNaN(z)) {
         mapDataFileRef.current.setNumber('centerX', x);
         mapDataFileRef.current.setNumber('centerZ', z);
       }
-    }, 5_000);
-    return () => clearInterval(id);
+    }, 1_000);
+    return () => clearTimeout(id);
   }, [centerX, centerZ]);
 
   const handleCoordsSubmit = useCallback(() => {
