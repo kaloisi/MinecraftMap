@@ -9,6 +9,13 @@ export interface Transform {
   scale: number;
 }
 
+export interface HighlightLine {
+  fromX: number;
+  fromZ: number;
+  toX: number;
+  toZ: number;
+}
+
 export interface MapViewerProps {
   seed: bigint;
   dimension: Dimension;
@@ -21,6 +28,7 @@ export interface MapViewerProps {
   onZoomChange?: (zoom: number) => void;
   onCursorChange?: (pos: { x: number; z: number } | null) => void;
   onLocationClick?: (worldPos: { x: number; z: number }) => void;
+  highlightLine?: HighlightLine | null;
 }
 
 export interface MapViewerHandle {
@@ -32,7 +40,7 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick, highlightLine }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom ?? INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -212,6 +220,18 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
             cursorWorld={cursorWorld}
             onBiomeHover={onBiomeHover}
           />
+          {highlightLine && (
+            <line
+              x1={highlightLine.fromX}
+              y1={highlightLine.fromZ}
+              x2={highlightLine.toX}
+              y2={highlightLine.toZ}
+              stroke="#FFD700"
+              strokeWidth={1.5 / transform.scale}
+              strokeDasharray={`${4 / transform.scale} ${3 / transform.scale}`}
+              pointerEvents="none"
+            />
+          )}
         </g>
       </svg>
     </Box>
