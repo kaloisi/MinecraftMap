@@ -60,8 +60,27 @@ function loadStateFromFile(file: MapDataFile) {
   };
 }
 
+function parseSeedFromHash(): bigint | null {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#seed=')) return null;
+  const raw = decodeURIComponent(hash.slice(6));
+  if (!raw) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setSeedInHash(seed: bigint) {
+  const newHash = `#seed=${seed.toString()}`;
+  if (window.location.hash !== newHash) {
+    history.replaceState(null, '', newHash);
+  }
+}
+
 function getInitialSeed(): bigint {
-  return mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
+  return parseSeedFromHash() ?? mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
 }
 
 function getInitialState() {
@@ -220,6 +239,7 @@ export default function App() {
     coordsDirty.current = false;
     lastSavedCoords.current = { x: state.centerX, z: state.centerZ };
     setSeed(newSeed);
+    setSeedInHash(newSeed);
     setMcVersion(state.mcVersion);
     setEnabledStructures(state.enabledStructures);
     setCenterX(formatCoord(state.centerX));
@@ -285,6 +305,22 @@ export default function App() {
     window.addEventListener('beforeunload', flush);
     return () => window.removeEventListener('beforeunload', flush);
   }, [saveCoords]);
+
+  useEffect(() => {
+    setSeedInHash(seed);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashSeed = parseSeedFromHash();
+      if (hashSeed !== null && hashSeed !== seed) {
+        loadSeed(hashSeed);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [seed, loadSeed]);
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
