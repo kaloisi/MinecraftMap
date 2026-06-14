@@ -152,7 +152,12 @@ After regenerating the library, update all files outside `src/CubiomesTS/` that 
    - **New API opportunities:** If the upstream added new functions that replace workarounds in consuming code, refactor to use the new API.
    - **Version constants:** If new `MCVersion` values were added, check whether consumers should default to the latest version.
 
-3. **Update `src/CubiomesTS/README.md`** to reflect any API changes — new functions, changed signatures, removed exports, or new usage patterns.
+3. **Update `src/CubiomesTS/README.md`** to reflect any API changes:
+   - Mark newly ported functions/types with **[PORTED]** in the "Upstream API Reference" tables.
+   - Add any new upstream functions that appeared in the fetched headers (new entries without **[PORTED]**).
+   - Remove any upstream functions that were deleted.
+   - Update the "Currently Used API" section if signatures changed.
+   - Update the "Notable Unported APIs" section if newly ported items should be removed from it, or if new high-value unported APIs were discovered.
 
 4. **Key consumer files to check:**
    - `src/components/CubiomesMap.tsx` — biome generation and rendering pipeline
