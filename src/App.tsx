@@ -255,7 +255,7 @@ export default function App() {
         mapDataFileRef.current.setNumber('centerX', x);
         mapDataFileRef.current.setNumber('centerZ', z);
       }
-    }, 60_000);
+    }, 5_000);
     return () => clearInterval(id);
   }, [centerX, centerZ]);
 
