@@ -60,10 +60,10 @@ const STRUCTURE_ENTRIES: { type: StructureType; label: string }[] = [
 ];
 
 const VERSION_ENTRIES: { version: MCVersion; label: string }[] = [
-  { version: MCVersion.MC_1_18, label: '1.18' },
-  { version: MCVersion.MC_1_19, label: '1.19' },
-  { version: MCVersion.MC_1_20, label: '1.20' },
   { version: MCVersion.MC_1_21, label: '1.21' },
+  { version: MCVersion.MC_1_20, label: '1.20' },
+  { version: MCVersion.MC_1_19, label: '1.19' },
+  { version: MCVersion.MC_1_18, label: '1.18' },
 ];
 
 export default function App() {
@@ -257,7 +257,7 @@ export default function App() {
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} />
+        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} />
       </Box>
 
       <Dialog
