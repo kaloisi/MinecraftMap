@@ -9,7 +9,6 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
-import ListSubheader from '@mui/material/ListSubheader';
 import Checkbox from '@mui/material/Checkbox';
 import Radio from '@mui/material/Radio';
 import Divider from '@mui/material/Divider';
@@ -19,6 +18,10 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
+import Popover from '@mui/material/Popover';
+import MenuList from '@mui/material/MenuList';
+import Paper from '@mui/material/Paper';
+import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import AddIcon from '@mui/icons-material/Add';
 import HomeIcon from '@mui/icons-material/Home';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -92,6 +95,8 @@ export default function App() {
   const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
+  const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
+  const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
   const [centerX, setCenterX] = useState('0');
   const [centerZ, setCenterZ] = useState('0');
@@ -116,6 +121,18 @@ export default function App() {
 
   const handleStructMenuClose = useCallback(() => {
     setStructMenuAnchor(null);
+    setSubMenuAnchor(null);
+    setActiveGroupIdx(-1);
+  }, []);
+
+  const handleSubMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>, idx: number) => {
+    setSubMenuAnchor(e.currentTarget);
+    setActiveGroupIdx(idx);
+  }, []);
+
+  const handleSubMenuClose = useCallback(() => {
+    setSubMenuAnchor(null);
+    setActiveGroupIdx(-1);
   }, []);
 
   const handleNewSeed = useCallback(() => {
@@ -238,24 +255,49 @@ export default function App() {
               anchorEl={structMenuAnchor}
               open={structMenuOpen}
               onClose={handleStructMenuClose}
-              slotProps={{ paper: { style: { maxHeight: '80vh' } } }}
             >
-              {STRUCTURE_GROUPS.map((group) => [
-                <ListSubheader key={`header-${group.dimension}`} sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
-                  {group.dimension}
-                </ListSubheader>,
-                ...group.entries.map(({ type, label }) => (
-                  <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
-                    <Checkbox
-                      checked={enabledStructures.has(type)}
-                      size="small"
-                      sx={{ p: 0, mr: 1 }}
-                    />
-                    <ListItemText>{label}</ListItemText>
-                  </MenuItem>
-                )),
-              ])}
+              {STRUCTURE_GROUPS.map((group, idx) => (
+                <MenuItem
+                  key={group.dimension}
+                  onMouseEnter={(e) => handleSubMenuOpen(e, idx)}
+                  onClick={(e) => handleSubMenuOpen(e, idx)}
+                  selected={activeGroupIdx === idx}
+                >
+                  <ListItemText>{group.dimension}</ListItemText>
+                  <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
+                </MenuItem>
+              ))}
             </Menu>
+            <Popover
+              open={subMenuAnchor !== null}
+              anchorEl={subMenuAnchor}
+              onClose={handleSubMenuClose}
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              disableAutoFocus
+              disableEnforceFocus
+              disableRestoreFocus
+              slotProps={{
+                paper: { style: { maxHeight: '80vh' }, onMouseLeave: handleSubMenuClose },
+                root: { style: { pointerEvents: 'none' } },
+              }}
+              sx={{ pointerEvents: 'none' }}
+            >
+              <Paper sx={{ pointerEvents: 'auto' }}>
+                <MenuList dense>
+                  {activeGroupIdx >= 0 && STRUCTURE_GROUPS[activeGroupIdx].entries.map(({ type, label }) => (
+                    <MenuItem key={type} onClick={() => handleToggleStructure(type)}>
+                      <Checkbox
+                        checked={enabledStructures.has(type)}
+                        size="small"
+                        sx={{ p: 0, mr: 1 }}
+                      />
+                      <ListItemText>{label}</ListItemText>
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Paper>
+            </Popover>
             <Select
               value={dimension}
               onChange={(e) => setDimension(e.target.value as Dimension)}
