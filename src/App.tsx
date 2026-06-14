@@ -20,6 +20,7 @@ import Select from '@mui/material/Select';
 import InputLabel from '@mui/material/InputLabel';
 import FormControl from '@mui/material/FormControl';
 import Popover from '@mui/material/Popover';
+import Drawer from '@mui/material/Drawer';
 import MenuList from '@mui/material/MenuList';
 import Paper from '@mui/material/Paper';
 import IconButton from '@mui/material/IconButton';
@@ -734,14 +735,24 @@ export default function App() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={locationDialogOpen} onClose={() => setLocationDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Location Details</DialogTitle>
+      <Drawer
+        anchor="right"
+        open={locationDialogOpen}
+        onClose={() => setLocationDialogOpen(false)}
+        variant="persistent"
+        sx={{ '& .MuiDrawer-paper': { width: 340, boxSizing: 'border-box' } }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
+          <Typography variant="h6">Location Details</Typography>
+          <Button size="small" onClick={() => setLocationDialogOpen(false)}>Close</Button>
+        </Box>
+        <Divider />
         {locationDialogData && (
-          <DialogContent>
+          <Box sx={{ px: 2, py: 1, overflow: 'auto', flexGrow: 1 }}>
             <Table size="small">
               <TableBody>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', width: 140 }}>Dimension</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Dimension</TableCell>
                   <TableCell>{locationDialogData.dimensionLabel}</TableCell>
                 </TableRow>
                 <TableRow>
@@ -787,12 +798,9 @@ export default function App() {
             {locationDialogData.nearbyStructures.length === 0 && (
               <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>No structures found within 500 blocks.</Typography>
             )}
-          </DialogContent>
+          </Box>
         )}
-        <DialogActions>
-          <Button onClick={() => setLocationDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      </Drawer>
     </ThemeProvider>
   );
 }
