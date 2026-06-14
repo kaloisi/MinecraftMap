@@ -73,13 +73,11 @@ export default function App() {
   const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
-  const [versionMenuAnchor, setVersionMenuAnchor] = useState<null | HTMLElement>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
-  const versionMenuOpen = Boolean(versionMenuAnchor);
 
   const handleFileMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
     setFileMenuAnchor(e.currentTarget);
@@ -95,14 +93,6 @@ export default function App() {
 
   const handleStructMenuClose = useCallback(() => {
     setStructMenuAnchor(null);
-  }, []);
-
-  const handleVersionMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    setVersionMenuAnchor(e.currentTarget);
-  }, []);
-
-  const handleVersionMenuClose = useCallback(() => {
-    setVersionMenuAnchor(null);
   }, []);
 
   const handleNewSeed = useCallback(() => {
@@ -182,6 +172,21 @@ export default function App() {
                 <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>Copy Seed</ListItemText>
               </MenuItem>
+              <Divider />
+              {VERSION_ENTRIES.map(({ version, label }) => (
+                <MenuItem
+                  key={version}
+                  onClick={() => { setMcVersion(version); handleFileMenuClose(); }}
+                  dense
+                >
+                  <Radio
+                    checked={mcVersion === version}
+                    size="small"
+                    sx={{ p: 0, mr: 1 }}
+                  />
+                  <ListItemText>{label}</ListItemText>
+                </MenuItem>
+              ))}
             </Menu>
             <Button
               color="inherit"
@@ -200,33 +205,6 @@ export default function App() {
                 <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
                   <Checkbox
                     checked={enabledStructures.has(type)}
-                    size="small"
-                    sx={{ p: 0, mr: 1 }}
-                  />
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              ))}
-            </Menu>
-            <Button
-              color="inherit"
-              onClick={handleVersionMenuOpen}
-              sx={{ textTransform: 'none', mr: 2 }}
-            >
-              Version
-            </Button>
-            <Menu
-              anchorEl={versionMenuAnchor}
-              open={versionMenuOpen}
-              onClose={handleVersionMenuClose}
-            >
-              {VERSION_ENTRIES.map(({ version, label }) => (
-                <MenuItem
-                  key={version}
-                  onClick={() => { setMcVersion(version); handleVersionMenuClose(); }}
-                  dense
-                >
-                  <Radio
-                    checked={mcVersion === version}
                     size="small"
                     sx={{ p: 0, mr: 1 }}
                   />
