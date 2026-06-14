@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Box from '@mui/material/Box';
 import CubiomesMap from './components/CubiomesMap';
 
@@ -12,15 +12,29 @@ export interface MapViewerProps {
   seed: bigint;
 }
 
+export interface MapViewerHandle {
+  goToOrigin: () => void;
+}
+
 const INITIAL_SCALE = 4;
 
-export default function MapViewer({ seed }: MapViewerProps) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const initialized = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
+
+  useImperativeHandle(ref, () => ({
+    goToOrigin() {
+      setTransform({
+        scale: INITIAL_SCALE,
+        x: viewport.width / 2,
+        y: viewport.height / 2,
+      });
+    },
+  }), [viewport]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -121,4 +135,6 @@ export default function MapViewer({ seed }: MapViewerProps) {
       </svg>
     </Box>
   );
-}
+});
+
+export default MapViewer;
