@@ -48,7 +48,7 @@ Fetch the latest versions of these files from `https://github.com/Cubitect/cubio
 | `util.h` | initBiomeColors (colour table only — skip file I/O) |
 | `finders.c` + `finders.h` | Structure position math (getFeaturePos, getLargeStructurePos, isViableStructurePos, getStructureConfig) |
 
-**Skip entirely:** `layers.c/h`, `quadbase.c/h`, file I/O functions in `util.c`, `searchAll48`, seed-search functions, `Piece*` linked-list logic (`getEndCityPieces`, `getFortressPieces`), blocking-loop functions (`checkForBiomes`, `locateBiome`, `monteCarloBiomes`, `getBiomeCenters`).
+**Skip entirely:** `layers.c/h`, `quadbase.c/h`, file I/O functions in `util.c`, `searchAll48`, seed-search functions, `Piece*` linked-list logic (`getEndCityPieces`, `getFortressPieces`), blocking-loop functions (`checkForBiomes`, `locateBiome`, `monteCarloBiomes`, `getBiomeCenters`), Voronoi access functions (`getVoronoiSrcRange`, `voronoiAccess3D`, `mapVoronoiPlane`), `fillRad3D` (3D Voronoi expansion — we use simplified 2D generation for the map viewer).
 
 ### Step 2 — Port to TypeScript in order
 
@@ -73,7 +73,7 @@ Port files in this order, placing output in `src/CubiomesTS/`:
 - `perlinInit` takes the `{ seed: bigint }` box from `rng.ts`.
 - Port `samplePerlin`, `sampleOctave`, `sampleDoublePerlin`.
 
-#### 2.4 `biomenoise.ts` — Spline system and biome climate mapping
+#### 2.4 `biomenoise.ts` — Spline system, biome climate mapping, and Nether/End noise
 - This is the hardest piece. Port carefully.
 - **SplineStack:** Convert the pointer-linked `Spline` / `FixSpline` structures into flat arrays of plain TS objects with index references (not pointers).
   - `Spline { typ, loc, der, len, val[] }` → use array indices for child references.
@@ -82,11 +82,24 @@ Port files in this order, placing output in `src/CubiomesTS/`:
 - Port `BiomeNoise` struct, `BiomeTree`, `climateToBiome`.
 - Port `sampleBiomeNoise`, `genBiomeNoiseScaled`, `genBiomeNoise`.
 - Port the `Range` struct as `{ scale: number; x: number; z: number; sx: number; sz: number; y: number; sy: number }`.
+- **Nether biome generation (MC 1.16+):**
+  - Port `NetherNoise` struct with `temperature` and `humidity` `DoublePerlinNoise` generators plus 8 octave buffers.
+  - Port `setNetherSeed(nn, seed)` — initializes temperature (seed) and humidity (seed+1) with `doublePerlinInit` at octave range [-7, 2].
+  - Port `getNetherBiome(nn, x, y, z)` — samples temperature/humidity noise, returns closest of 5 fixed biome climate points (nether_wastes, soul_sand_valley, crimson_forest, warped_forest, basalt_deltas) by Euclidean distance.
+  - Port `genNetherScaled(nn, out, range)` — fills output array with Nether biomes at specified scale. Simplified 2D version (y is sampled at 0) sufficient for map display.
+- **End biome generation (MC 1.9+):**
+  - Port `EndNoise` struct with a single `PerlinNoise` generator.
+  - Port `setEndSeed(en, mc, seed)` — advances RNG by 17,292 positions, then initializes Perlin noise.
+  - Port `getEndHeightNoise(en, x, z)` — evaluates Simplex2D noise in a grid around the point; only peaks where noise < -0.9 contribute height. Returns clamped [-100, 80].
+  - Port `genEndScaled(en, out, range)` — center 4096-radius region is `the_end`; outer ring classified by height into `end_highlands`, `end_midlands`, `end_barrens`, `small_end_islands`.
 
 #### 2.5 `generator.ts` — Top-level orchestration
-- Port `Generator` struct/interface with fields for the noise generators, dimension, MC version, flags, seed, biome params.
+- Port `Generator` struct/interface with fields for the noise generators (`bn: BiomeNoise`, `nn: NetherNoise`, `en: EndNoise`), dimension, MC version, flags, seed, biome params.
 - Port `setupGenerator(mcVersion, flags)`, `applySeed(generator, dimension, seed)`, `genBiomes(generator, cache, range)`, `getBiomeAt(generator, scale, x, y, z)`.
 - `allocCache(range)` → `new Int32Array(range.sx * range.sz * range.sy)`.
+- **All three dimensions must be supported:**
+  - `applySeed` dispatches to `setBiomeSeed` (Overworld), `setNetherSeed` (Nether), or `setEndSeed` (End).
+  - `genBiomes` dispatches to `genBiomeNoiseScaled` (Overworld), `genNetherScaled` (Nether), or `genEndScaled` (End).
 
 #### 2.6 `biomeColors.ts` — Color lookup table
 - Port `initBiomeColors` from `util.h` as `const BIOME_COLORS: Map<number, [number, number, number]>`.
@@ -175,7 +188,7 @@ After a successful port:
 
 ### Important notes
 
-- **MC 1.18+ only.** Do not port any `layers.c/h` layer-stack logic. If you encounter `MC <= MC_1_17` branches in the C code, skip them or add an early return/throw for unsupported versions.
+- **MC 1.18+ only for Overworld.** Do not port any `layers.c/h` layer-stack logic. If you encounter `MC <= MC_1_17` branches in the C code, skip them or add an early return/throw for unsupported versions. Nether uses MC 1.16+ multi-noise; End uses MC 1.9+ Simplex islands.
 - **No seed searching.** Do not port `searchAll48`, `filterAllTempCat`, or any function whose purpose is iterating over seed candidates.
 - **Keep function names matching the C originals** so the port can be cross-referenced with the cubiomes source.
 - **No comments except where the WHY is non-obvious** (e.g., explaining a BigInt mask or a deviation from the C original).
@@ -202,3 +215,21 @@ After a successful port:
 - **Scale 1:1 (Voronoi) is not yet implemented** in `genBiomeNoiseScaled`. Throws an error. Scale 4 works for the map viewer.
 - **`biomenoise.ts` is the hardest file to port.** It contains the spline system, climate seed initialization with md5 hashes, and the full biome sampling pipeline. Expect this to take the most time and produce the most bugs.
 - **Fetching raw C source:** Use `curl` to download raw files from GitHub (`https://raw.githubusercontent.com/Cubitect/cubiomes/<hash>/<file>`). The GitHub MCP tools are repository-scoped and cannot access `Cubitect/cubiomes`. WebFetch may summarize content instead of returning it verbatim.
+
+### 2026-06-14 — Nether & End dimension support
+
+**Files modified:** `biomes.ts`, `biomeColors.ts`, `biomenoise.ts`, `generator.ts`, `index.ts`, `CubiomesMap.tsx`
+
+**Changes:**
+- Added `NetherNoise` and `EndNoise` interfaces and generation functions to `biomenoise.ts`.
+- `generator.ts` now supports all three dimensions — `applySeed` and `genBiomes` dispatch to the correct noise system.
+- Fixed End biome IDs (small_end_islands=40, end_midlands=41, end_highlands=42, end_barrens=43) and corrected ocean biome IDs (warm_ocean=44..deep_frozen_ocean=50) — the original port had ocean IDs shifted down by 4.
+- Added End biome colors and names to `biomeColors.ts`.
+- `CubiomesMap.tsx` applies 8:1 coordinate scaling for the Nether dimension: viewport coords are divided by 8 for tile lookups, tiles are rendered 8x larger in SVG space, and structure positions are scaled accordingly.
+- Structure overlay now filters by dimension (`config.dim`) so only dimension-appropriate structures appear.
+
+**Learnings:**
+- **Nether uses Java-style `setSeed`/`doublePerlinInit`, not Xoroshiro.** Unlike the Overworld's 1.18+ climate system, the Nether's temperature/humidity noise uses the legacy LCG-based `setSeed` + `doublePerlinInit` path.
+- **End biome classification is height-based, not climate-based.** The End uses Simplex2D noise to detect island peaks (threshold < -0.9), then classifies biomes by a height metric derived from distance-weighted elevation sums.
+- **Ocean biome IDs in cubiomes start at 44, not 40.** IDs 40-43 are the End biomes (small_end_islands through end_barrens). The original port had these shifted, which didn't matter when only Overworld was rendered but would have caused biome misidentification.
+- **Nether 8:1 coordinate scaling must be applied at the rendering layer, not the biome generation layer.** Cubiomes generates biomes in dimension-local coordinates. The map viewer must translate between display coordinates (Overworld-equivalent) and dimension-local coordinates for tile generation, biome hover lookup, and structure position display.

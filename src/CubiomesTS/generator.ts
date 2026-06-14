@@ -3,10 +3,18 @@ import type { Range } from './types';
 import { Dimension } from './types';
 import {
   type BiomeNoise,
+  type NetherNoise,
+  type EndNoise,
   createBiomeNoise,
+  createNetherNoise,
+  createEndNoise,
   initBiomeNoise,
   setBiomeSeed,
+  setNetherSeed,
+  setEndSeed,
   genBiomeNoiseScaled,
+  genNetherScaled,
+  genEndScaled,
 } from './biomenoise';
 
 export const enum GeneratorFlags {
@@ -22,6 +30,8 @@ export interface Generator {
   seed: bigint;
   sha: bigint;
   bn: BiomeNoise;
+  nn: NetherNoise;
+  en: EndNoise;
 }
 
 export function setupGenerator(mc: MCVersion, flags: number = 0): Generator {
@@ -37,6 +47,8 @@ export function setupGenerator(mc: MCVersion, flags: number = 0): Generator {
     seed: 0n,
     sha: 0n,
     bn,
+    nn: createNetherNoise(),
+    en: createEndNoise(),
   };
 }
 
@@ -47,8 +59,11 @@ export function applySeed(gen: Generator, dim: Dimension, seed: bigint): void {
 
   if (dim === Dimension.DIM_OVERWORLD) {
     setBiomeSeed(gen.bn, seed, !!(gen.flags & GeneratorFlags.LARGE_BIOMES));
+  } else if (dim === Dimension.DIM_NETHER) {
+    setNetherSeed(gen.nn, seed);
+  } else if (dim === Dimension.DIM_END) {
+    setEndSeed(gen.en, gen.mc, seed);
   }
-  // Nether and End biome generation not yet ported
 }
 
 export function allocCache(range: Range): Int32Array {
@@ -64,13 +79,16 @@ export function allocCache(range: Range): Int32Array {
 }
 
 export function genBiomes(gen: Generator, cache: Int32Array, range: Range): void {
-  if (gen.dim !== Dimension.DIM_OVERWORLD) {
-    throw new Error('Only Overworld dimension is supported');
-  }
   if (gen.mc < MCVersion.MC_1_18) {
     throw new Error('Only MC 1.18+ is supported');
   }
-  genBiomeNoiseScaled(gen.bn, cache, range);
+  if (gen.dim === Dimension.DIM_OVERWORLD) {
+    genBiomeNoiseScaled(gen.bn, cache, range);
+  } else if (gen.dim === Dimension.DIM_NETHER) {
+    genNetherScaled(gen.nn, cache, range);
+  } else if (gen.dim === Dimension.DIM_END) {
+    genEndScaled(gen.en, cache, range);
+  }
 }
 
 export function getBiomeAt(gen: Generator, scale: number, x: number, y: number, z: number): number {

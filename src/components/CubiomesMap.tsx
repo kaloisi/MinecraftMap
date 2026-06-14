@@ -30,14 +30,23 @@ export interface CubiomesMapProps {
   onBiomeHover?: (name: string | null) => void;
 }
 
+function dimCoordScale(dim: Dimension): number {
+  return dim === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
+}
+
+let currentDimension: Dimension = Dimension.DIM_OVERWORLD;
+
 export function lookupBiomeName(worldX: number, worldZ: number): string | null {
-  const tx = Math.floor(worldX / TILE_SIZE);
-  const tz = Math.floor(worldZ / TILE_SIZE);
+  const cs = dimCoordScale(currentDimension);
+  const dimX = worldX / cs;
+  const dimZ = worldZ / cs;
+  const tx = Math.floor(dimX / TILE_SIZE);
+  const tz = Math.floor(dimZ / TILE_SIZE);
   const key = tileKeyStr(tx, tz);
   const tile = tileCache.get(key);
   if (!tile) return null;
-  const lx = Math.floor(worldX) - tx * TILE_SIZE;
-  const lz = Math.floor(worldZ) - tz * TILE_SIZE;
+  const lx = Math.floor(dimX) - tx * TILE_SIZE;
+  const lz = Math.floor(dimZ) - tz * TILE_SIZE;
   if (lx < 0 || lx >= TILE_SIZE || lz < 0 || lz >= TILE_SIZE) return null;
   const biomeId = tile[lz * TILE_SIZE + lx];
   return biomeName(biomeId);
@@ -47,6 +56,7 @@ const TILE_SIZE = 16;
 const BUFFER_CHUNKS = 5;
 const BATCH_SIZE = 8;
 const BIOME_SCALE = 4;
+const NETHER_RATIO = 8;
 
 let cachedGen: { seed: bigint; dim: Dimension; ver: MCVersion; gen: ReturnType<typeof setupGenerator> } | null = null;
 const tileCache = new Map<string, Int32Array>();
@@ -139,19 +149,20 @@ const ChunkTile = memo(function ChunkTile({
   tileX,
   tileZ,
   biomes,
-}: ChunkData) {
+  coordScale,
+}: ChunkData & { coordScale: number }) {
   const merged = mergeRects(biomes, TILE_SIZE);
-  const ox = tileX * TILE_SIZE;
-  const oz = tileZ * TILE_SIZE;
+  const ox = tileX * TILE_SIZE * coordScale;
+  const oz = tileZ * TILE_SIZE * coordScale;
   return (
     <g id={`chunk_${tileX}_${tileZ}`}>
       {merged.map((r, i) => (
         <rect
           key={i}
-          x={ox + r.x}
-          y={oz + r.z}
-          width={r.w}
-          height={r.h}
+          x={ox + r.x * coordScale}
+          y={oz + r.z * coordScale}
+          width={r.w * coordScale}
+          height={r.h * coordScale}
           fill={r.fill}
         />
       ))}
@@ -223,30 +234,38 @@ function findStructuresInView(
   enabledStructures: Set<StructureType>,
   seed: bigint,
   mcVersion: MCVersion,
+  dimension: Dimension,
   worldLeft: number,
   worldTop: number,
   worldRight: number,
   worldBottom: number,
 ): StructureMarker[] {
   const markers: StructureMarker[] = [];
+  const cs = dimCoordScale(dimension);
 
   for (const structType of enabledStructures) {
     const config = getStructureConfig(structType, mcVersion);
     if (!config) continue;
+    if (config.dim !== dimension) continue;
 
     const regionBlockSize = config.regionSize * 16;
-    const minRegX = Math.floor((worldLeft * BIOME_SCALE) / regionBlockSize) - 1;
-    const maxRegX = Math.ceil((worldRight * BIOME_SCALE) / regionBlockSize) + 1;
-    const minRegZ = Math.floor((worldTop * BIOME_SCALE) / regionBlockSize) - 1;
-    const maxRegZ = Math.ceil((worldBottom * BIOME_SCALE) / regionBlockSize) + 1;
+    // Convert display-space bounds to dimension-local block coords for region lookup
+    const blockLeft = worldLeft * BIOME_SCALE / cs;
+    const blockRight = worldRight * BIOME_SCALE / cs;
+    const blockTop = worldTop * BIOME_SCALE / cs;
+    const blockBottom = worldBottom * BIOME_SCALE / cs;
+    const minRegX = Math.floor(blockLeft / regionBlockSize) - 1;
+    const maxRegX = Math.ceil(blockRight / regionBlockSize) + 1;
+    const minRegZ = Math.floor(blockTop / regionBlockSize) - 1;
+    const maxRegZ = Math.ceil(blockBottom / regionBlockSize) + 1;
 
     for (let regZ = minRegZ; regZ <= maxRegZ; regZ++) {
       for (let regX = minRegX; regX <= maxRegX; regX++) {
         const pos = getStructurePos(structType, mcVersion, seed, regX, regZ);
         if (pos) {
           markers.push({
-            x: pos.x / BIOME_SCALE,
-            z: pos.z / BIOME_SCALE,
+            x: pos.x * cs / BIOME_SCALE,
+            z: pos.z * cs / BIOME_SCALE,
             type: structType,
           });
         }
@@ -315,6 +334,8 @@ export default function CubiomesMap({
   onBiomeHover,
 }: CubiomesMapProps) {
   const generator = useMemo(() => getGenerator(seed, dimension, mcVersion), [seed, dimension, mcVersion]);
+  const coordScale = dimCoordScale(dimension);
+  currentDimension = dimension;
   const [asyncVersion, setAsyncVersion] = useState(0);
 
   useEffect(() => {
@@ -337,10 +358,16 @@ export default function CubiomesMap({
     const worldRight = worldLeft + viewportWidth * invScale;
     const worldBottom = worldTop + viewportHeight * invScale;
 
-    const tileLeft = Math.floor(worldLeft / TILE_SIZE) - BUFFER_CHUNKS;
-    const tileTop = Math.floor(worldTop / TILE_SIZE) - BUFFER_CHUNKS;
-    const tileRight = Math.ceil(worldRight / TILE_SIZE) + BUFFER_CHUNKS;
-    const tileBottom = Math.ceil(worldBottom / TILE_SIZE) + BUFFER_CHUNKS;
+    // Convert display coords to dimension-local tile coords
+    const dimLeft = worldLeft / coordScale;
+    const dimTop = worldTop / coordScale;
+    const dimRight = worldRight / coordScale;
+    const dimBottom = worldBottom / coordScale;
+
+    const tileLeft = Math.floor(dimLeft / TILE_SIZE) - BUFFER_CHUNKS;
+    const tileTop = Math.floor(dimTop / TILE_SIZE) - BUFFER_CHUNKS;
+    const tileRight = Math.ceil(dimRight / TILE_SIZE) + BUFFER_CHUNKS;
+    const tileBottom = Math.ceil(dimBottom / TILE_SIZE) + BUFFER_CHUNKS;
 
     const desiredKeys = new Set<string>();
     for (let tz = tileTop; tz <= tileBottom; tz++) {
@@ -433,7 +460,7 @@ export default function CubiomesMap({
     const handle = setTimeout(() => {
       if (genId !== structureGenId.current) return;
       const markers = findStructuresInView(
-        enabledStructures, seed, mcVersion,
+        enabledStructures, seed, mcVersion, dimension,
         worldLeft, worldTop, worldRight, worldBottom,
       );
       if (genId === structureGenId.current) {
@@ -442,7 +469,7 @@ export default function CubiomesMap({
     }, 0);
 
     return () => clearTimeout(handle);
-  }, [enabledStructures, seed, mcVersion, transform, viewportWidth, viewportHeight]);
+  }, [enabledStructures, seed, mcVersion, dimension, transform, viewportWidth, viewportHeight]);
 
   const chunks = useMemo(
     () => Array.from(activeChunks.values()),
@@ -458,6 +485,7 @@ export default function CubiomesMap({
           tileX={chunk.tileX}
           tileZ={chunk.tileZ}
           biomes={chunk.biomes}
+          coordScale={coordScale}
         />
       ))}
       {structureMarkers.length > 0 && (

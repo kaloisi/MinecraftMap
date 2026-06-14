@@ -1,13 +1,17 @@
-import { MCVersion } from './biomes';
-import type { DoublePerlinNoise, PerlinNoise } from './types';
+import { BiomeId, MCVersion } from './biomes';
+import type { DoublePerlinNoise, PerlinNoise, Range } from './types';
 import {
+  setSeed, skipNextN,
   xSetSeed, xNextLong,
-  type Xoroshiro,
+  type SeedBox, type Xoroshiro,
 } from './rng';
 import {
+  doublePerlinInit,
   xDoublePerlinInit,
   sampleDoublePerlin,
+  sampleSimplex2D,
   createPerlinNoise,
+  perlinInit,
 } from './noise';
 import {
   btree18, btree192, btree19, btree20, btree21wd,
@@ -532,7 +536,7 @@ export function sampleClimatePara(bn: BiomeNoise, np: BigInt64Array | null, x: n
   return p;
 }
 
-export function genBiomeNoiseScaled(bn: BiomeNoise, out: Int32Array, r: import('./types').Range): void {
+export function genBiomeNoiseScaled(bn: BiomeNoise, out: Int32Array, r: Range): void {
   if (r.sy <= 0) r.sy = 1;
 
   if (r.scale === 1) {
@@ -553,6 +557,166 @@ export function genBiomeNoiseScaled(bn: BiomeNoise, out: Int32Array, r: import('
       for (let i = 0; i < r.sx; i++) {
         const xi = (r.x + i) * scale + mid;
         out[p] = sampleBiomeNoise(bn, null, xi, yk, zj, dat, flags);
+        p++;
+      }
+    }
+  }
+}
+
+// --- Nether biome generation ---
+
+export interface NetherNoise {
+  temperature: DoublePerlinNoise;
+  humidity: DoublePerlinNoise;
+  oct: PerlinNoise[];
+}
+
+export function createNetherNoise(): NetherNoise {
+  const oct: PerlinNoise[] = [];
+  for (let i = 0; i < 8; i++) oct.push(createPerlinNoise());
+  return {
+    temperature: { amplitude: 0, octA: { octaves: [], octcnt: 0 }, octB: { octaves: [], octcnt: 0 } },
+    humidity: { amplitude: 0, octA: { octaves: [], octcnt: 0 }, octB: { octaves: [], octcnt: 0 } },
+    oct,
+  };
+}
+
+export function setNetherSeed(nn: NetherNoise, seed: bigint): void {
+  const s: SeedBox = { seed: 0n };
+  setSeed(s, seed);
+  doublePerlinInit(nn.temperature, s, -7, 2);
+  setSeed(s, seed + 1n);
+  doublePerlinInit(nn.humidity, s, -7, 2);
+}
+
+const NETHER_BIOME_POINTS: { temp: number; hum: number; alt: number; biome: number }[] = [
+  { temp: 0.0,  hum:  0.0,  alt: 0.0,       biome: BiomeId.nether_wastes },
+  { temp: 0.0,  hum: -0.5,  alt: 0.0,       biome: BiomeId.soul_sand_valley },
+  { temp: 0.4,  hum:  0.0,  alt: 0.0,       biome: BiomeId.crimson_forest },
+  { temp: 0.0,  hum:  0.5,  alt: 0.140625,  biome: BiomeId.warped_forest },
+  { temp: -0.5, hum:  0.0,  alt: 0.030625,  biome: BiomeId.basalt_deltas },
+];
+
+export function getNetherBiome(nn: NetherNoise, x: number, _y: number, z: number): number {
+  const temp = sampleDoublePerlin(nn.temperature, x, 0, z);
+  const hum = sampleDoublePerlin(nn.humidity, x, 0, z);
+
+  let minDist = Infinity;
+  let biome = BiomeId.nether_wastes;
+  for (let i = 0; i < NETHER_BIOME_POINTS.length; i++) {
+    const p = NETHER_BIOME_POINTS[i];
+    const dt = temp - p.temp;
+    const dh = hum - p.hum;
+    const da = p.alt;
+    const dist = dt * dt + dh * dh + da * da;
+    if (dist < minDist) {
+      minDist = dist;
+      biome = p.biome;
+    }
+  }
+  return biome;
+}
+
+export function genNetherScaled(nn: NetherNoise, out: Int32Array, r: Range): void {
+  if (r.scale <= 0) r.scale = 4;
+  if (r.sy <= 0) r.sy = 1;
+
+  const scale = r.scale > 4 ? Math.floor(r.scale / 4) : 1;
+  const mid = Math.floor(scale / 2);
+  let p = 0;
+
+  for (let k = 0; k < r.sy; k++) {
+    const yk = r.y + k;
+    for (let j = 0; j < r.sz; j++) {
+      const zj = (r.z + j) * scale + mid;
+      for (let i = 0; i < r.sx; i++) {
+        const xi = (r.x + i) * scale + mid;
+        out[p] = getNetherBiome(nn, xi, yk, zj);
+        p++;
+      }
+    }
+  }
+}
+
+// --- End biome generation ---
+
+export interface EndNoise {
+  perlin: PerlinNoise;
+  mc: number;
+}
+
+export function createEndNoise(): EndNoise {
+  return {
+    perlin: createPerlinNoise(),
+    mc: 0,
+  };
+}
+
+export function setEndSeed(en: EndNoise, mc: number, seed: bigint): void {
+  const s: SeedBox = { seed: 0n };
+  setSeed(s, seed);
+  skipNextN(s, 17292n);
+  perlinInit(en.perlin, s);
+  en.mc = mc;
+}
+
+function getEndHeightNoise(en: EndNoise, x: number, z: number): number {
+  const CHUNKS = 2;
+  let sum = 0;
+
+  for (let rz = -CHUNKS; rz <= CHUNKS; rz++) {
+    for (let rx = -CHUNKS; rx <= CHUNKS; rx++) {
+      const cx = x + rx;
+      const cz = z + rz;
+      const noise = sampleSimplex2D(en.perlin, cx, cz);
+      if (noise < -0.9) {
+        const ax = Math.abs(cx) * 3439.0 + Math.abs(cz) * 147.0;
+        const v = ((ax | 0) % 13 + 9);
+        const e = v * v;
+        const dx = rx * 2;
+        const dz = rz * 2;
+        const dist2 = dx * dx + dz * dz;
+        sum += e * (1.0 / (dist2 + 1.0));
+      }
+    }
+  }
+
+  const result = 100.0 - Math.sqrt(sum);
+  return Math.max(-100, Math.min(80, result));
+}
+
+function getEndBiome(height: number, rsq: number): number {
+  if (rsq <= 4096) return BiomeId.the_end;
+  if (height > 40) return BiomeId.end_highlands;
+  if (height >= 0) return BiomeId.end_midlands;
+  if (height < -20) return BiomeId.small_end_islands;
+  return BiomeId.end_barrens;
+}
+
+export function genEndScaled(en: EndNoise, out: Int32Array, r: Range): void {
+  if (r.scale <= 0) r.scale = 4;
+  if (r.sy <= 0) r.sy = 1;
+
+  const scale = r.scale > 4 ? Math.floor(r.scale / 4) : 1;
+  const mid = Math.floor(scale / 2);
+  let p = 0;
+
+  for (let k = 0; k < r.sy; k++) {
+    for (let j = 0; j < r.sz; j++) {
+      for (let i = 0; i < r.sx; i++) {
+        const bx = (r.x + i) * scale + mid;
+        const bz = (r.z + j) * scale + mid;
+        // chunk coords (>> 2 since we're already at 1:4 biome scale)
+        const cx = bx >> 2;
+        const cz = bz >> 2;
+        const rsq = cx * cx + cz * cz;
+
+        if (rsq <= 4096) {
+          out[p] = BiomeId.the_end;
+        } else {
+          const h = getEndHeightNoise(en, cx, cz);
+          out[p] = getEndBiome(h, rsq);
+        }
         p++;
       }
     }

@@ -23,8 +23,10 @@ export {
 export {
   initBiomeNoise, setBiomeSeed, sampleBiomeNoise, climateToBiome,
   genBiomeNoiseScaled, sampleClimatePara,
+  setNetherSeed, getNetherBiome, genNetherScaled, createNetherNoise,
+  setEndSeed, genEndScaled, createEndNoise,
   NP, NP_DEPTH, SampleFlags,
-  type BiomeNoise,
+  type BiomeNoise, type NetherNoise, type EndNoise,
 } from './biomenoise';
 export {
   StructureType,
