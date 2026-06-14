@@ -30,7 +30,7 @@ const darkTheme = createTheme({
   palette: { mode: 'dark' },
 });
 
-const DEFAULT_SEED = 0n;
+const DEFAULT_SEED = 6770262141636552371n;
 
 const STRUCTURE_ENTRIES: { type: StructureType; label: string }[] = [
   { type: StructureType.Desert_Pyramid, label: 'Desert Pyramid' },
