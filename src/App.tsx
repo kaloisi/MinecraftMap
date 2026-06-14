@@ -54,12 +54,14 @@ function loadStateFromFile(file: MapDataFile, seed: bigint) {
   const x = file.getNumber('centerX');
   const z = file.getNumber('centerZ');
   const name = file.getString('mapName');
+  const zoom = file.getNumber('zoom');
   return {
     mcVersion: version ?? MCVersion.MC_1_21,
     enabledStructures: new Set<StructureType>(structures ?? []),
     centerX: x ?? 0,
     centerZ: z ?? 0,
     mapName: name ?? seed.toString(),
+    zoom: zoom ?? 4,
   };
 }
 
@@ -169,6 +171,9 @@ export default function App() {
   const isUserEditingCoords = useRef(false);
   const coordsDirty = useRef(false);
   const lastSavedCoords = useRef({ x: initial.centerX, z: initial.centerZ });
+  const zoomDirty = useRef(false);
+  const lastSavedZoom = useRef(initial.zoom);
+  const currentZoom = useRef(initial.zoom);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -226,13 +231,25 @@ export default function App() {
     }
   }, [centerX, centerZ]);
 
+  const saveZoom = useCallback(() => {
+    if (currentZoom.current !== lastSavedZoom.current) {
+      mapDataFileRef.current.setNumber('zoom', currentZoom.current);
+      lastSavedZoom.current = currentZoom.current;
+      zoomDirty.current = false;
+    }
+  }, []);
+
   const loadSeed = useCallback((newSeed: bigint) => {
     if (coordsDirty.current) saveCoords();
+    if (zoomDirty.current) saveZoom();
     const file = mapDataFiles.getMapDataFile(newSeed);
     mapDataFileRef.current = file;
     const state = loadStateFromFile(file, newSeed);
     coordsDirty.current = false;
     lastSavedCoords.current = { x: state.centerX, z: state.centerZ };
+    zoomDirty.current = false;
+    lastSavedZoom.current = state.zoom;
+    currentZoom.current = state.zoom;
     setSeed(newSeed);
     setSeedInHash(newSeed);
     setMcVersion(state.mcVersion);
@@ -243,7 +260,7 @@ export default function App() {
     if (state.centerX !== 0 || state.centerZ !== 0) {
       setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
     }
-  }, [saveCoords]);
+  }, [saveCoords, saveZoom]);
 
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
@@ -306,6 +323,14 @@ export default function App() {
     coordsDirty.current = true;
   }, []);
 
+  const [zoomTick, setZoomTick] = useState(0);
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    currentZoom.current = zoom;
+    zoomDirty.current = true;
+    setZoomTick((t) => t + 1);
+  }, []);
+
   useEffect(() => {
     if (!coordsDirty.current) return;
     const id = setTimeout(saveCoords, 1_000);
@@ -313,10 +338,19 @@ export default function App() {
   }, [centerX, centerZ, saveCoords]);
 
   useEffect(() => {
-    const flush = () => { if (coordsDirty.current) saveCoords(); };
+    if (!zoomDirty.current) return;
+    const id = setTimeout(saveZoom, 1_000);
+    return () => clearTimeout(id);
+  }, [zoomTick, saveZoom]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (coordsDirty.current) saveCoords();
+      if (zoomDirty.current) saveZoom();
+    };
     window.addEventListener('beforeunload', flush);
     return () => window.removeEventListener('beforeunload', flush);
-  }, [saveCoords]);
+  }, [saveCoords, saveZoom]);
 
   useEffect(() => {
     setSeedInHash(seed);
@@ -532,7 +566,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} />
           <Typography
             variant="body2"
             sx={{
