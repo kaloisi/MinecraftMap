@@ -64,8 +64,10 @@ export function isViableStructureBiome(structType: number, biomeId: number): boo
     case StructureType.End_City:
       return biomeId === BiomeId.end_midlands || biomeId === BiomeId.end_highlands;
     case StructureType.Treasure:
-    case StructureType.Mineshaft:
+      return biomeId === BiomeId.beach || biomeId === BiomeId.snowy_beach;
     case StructureType.Desert_Well:
+      return biomeId === BiomeId.desert;
+    case StructureType.Mineshaft:
     case StructureType.Geode:
       return true;
     default:
