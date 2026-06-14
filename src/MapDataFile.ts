@@ -1,5 +1,22 @@
 import type { Seed, MapDataStorage } from './MapDataStorage';
 
+/**
+ * Per-seed data store for a single Minecraft world.
+ *
+ * Each MapDataFile namespaces its keys under `map:<seed>:` so that
+ * multiple worlds can coexist in the same storage backend without
+ * collisions. Typed getter/setter pairs handle serialization for
+ * common value types (string, number, boolean, JSON objects).
+ *
+ * Instances are created via {@link MapDataFiles.getMapDataFile} rather
+ * than constructed directly, so the factory can track known seeds.
+ *
+ * Example stored keys for seed 12345:
+ *   map:12345:viewportX   → number (last pan position)
+ *   map:12345:viewportZ   → number
+ *   map:12345:zoom        → number
+ *   map:12345:overlays    → JSON (enabled structure overlay config)
+ */
 export class MapDataFile {
   private readonly seed: Seed;
   private readonly storage: MapDataStorage;
