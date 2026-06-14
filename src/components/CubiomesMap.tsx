@@ -12,8 +12,8 @@ import {
   getStructureConfig,
   getStructurePos,
   getBiomeAt,
-  isViableStructureBiome,
 } from '../CubiomesTS';
+import { isViableStructureBiome } from '../structureViability';
 import type { Range } from '../CubiomesTS';
 
 export interface CubiomesMapProps {
