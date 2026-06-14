@@ -15,12 +15,43 @@ export class MapDataFile {
     return this.seed;
   }
 
-  get(key: string): string | null {
+  getString(key: string): string | null {
     return this.storage.getItem(this.keyPrefix + key);
   }
 
-  set(key: string, value: string): void {
+  setString(key: string, value: string): void {
     this.storage.setItem(this.keyPrefix + key, value);
+  }
+
+  getNumber(key: string): number | null {
+    const raw = this.storage.getItem(this.keyPrefix + key);
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  setNumber(key: string, value: number): void {
+    this.storage.setItem(this.keyPrefix + key, String(value));
+  }
+
+  getBoolean(key: string): boolean | null {
+    const raw = this.storage.getItem(this.keyPrefix + key);
+    if (raw === null) return null;
+    return raw === 'true';
+  }
+
+  setBoolean(key: string, value: boolean): void {
+    this.storage.setItem(this.keyPrefix + key, String(value));
+  }
+
+  getJSON<T>(key: string): T | null {
+    const raw = this.storage.getItem(this.keyPrefix + key);
+    if (raw === null) return null;
+    return JSON.parse(raw) as T;
+  }
+
+  setJSON<T>(key: string, value: T): void {
+    this.storage.setItem(this.keyPrefix + key, JSON.stringify(value));
   }
 
   remove(key: string): void {
