@@ -74,9 +74,12 @@ export default function App() {
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
+  const [centerX, setCenterX] = useState('0');
+  const [centerZ, setCenterZ] = useState('0');
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
+  const isUserEditingCoords = useRef(false);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -138,6 +141,22 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const handleCenterChange = useCallback((x: number, z: number) => {
+    if (!isUserEditingCoords.current) {
+      setCenterX(String(x));
+      setCenterZ(String(z));
+    }
+  }, []);
+
+  const handleCoordsSubmit = useCallback(() => {
+    isUserEditingCoords.current = false;
+    const x = parseInt(centerX, 10);
+    const z = parseInt(centerZ, 10);
+    if (!isNaN(x) && !isNaN(z)) {
+      mapRef.current?.goToPosition(x, z);
+    }
+  }, [centerX, centerZ]);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -231,13 +250,47 @@ export default function App() {
               <MenuItem value={Dimension.DIM_END}>The End</MenuItem>
             </Select>
             <Box sx={{ flexGrow: 1 }} />
+            <TextField
+              label="X"
+              size="small"
+              variant="outlined"
+              value={centerX}
+              onFocus={() => { isUserEditingCoords.current = true; }}
+              onBlur={() => { isUserEditingCoords.current = false; }}
+              onChange={(e) => setCenterX(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCoordsSubmit(); }}
+              sx={{
+                width: 90,
+                mr: 1,
+                input: { color: 'inherit', py: 0.5, fontSize: '0.875rem' },
+                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
+                '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
+              }}
+            />
+            <TextField
+              label="Z"
+              size="small"
+              variant="outlined"
+              value={centerZ}
+              onFocus={() => { isUserEditingCoords.current = true; }}
+              onBlur={() => { isUserEditingCoords.current = false; }}
+              onChange={(e) => setCenterZ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCoordsSubmit(); }}
+              sx={{
+                width: 90,
+                mr: 2,
+                input: { color: 'inherit', py: 0.5, fontSize: '0.875rem' },
+                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
+                '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
+              }}
+            />
             <Typography variant="body2" sx={{ opacity: 0.7 }}>
               {hoveredBiome && <>Biome: {hoveredBiome} &nbsp;|&nbsp; </>}
               Seed: {seed.toString()}
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} />
+        <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
       </Box>
 
       <Dialog
