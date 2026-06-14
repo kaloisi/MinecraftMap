@@ -11,6 +11,8 @@ import {
   StructureType,
   getStructureConfig,
   getStructurePos,
+  getBiomeAt,
+  isViableStructureBiome,
 } from '../CubiomesTS';
 import type { Range } from '../CubiomesTS';
 
@@ -68,7 +70,7 @@ interface ChunkData {
   biomes: Int32Array;
 }
 
-function getGenerator(seed: bigint, dim: Dimension, ver: MCVersion) {
+export function getGenerator(seed: bigint, dim: Dimension, ver: MCVersion) {
   if (cachedGen && cachedGen.seed === seed && cachedGen.dim === dim && cachedGen.ver === ver) return cachedGen.gen;
   tileCache.clear();
   activeChunks.clear();
@@ -231,6 +233,7 @@ interface StructureMarker {
 }
 
 function findStructuresInView(
+  generator: ReturnType<typeof setupGenerator>,
   enabledStructures: Set<StructureType>,
   seed: bigint,
   mcVersion: MCVersion,
@@ -249,7 +252,6 @@ function findStructuresInView(
     if (config.dim !== dimension) continue;
 
     const regionBlockSize = config.regionSize * 16;
-    // Convert display-space bounds to dimension-local block coords for region lookup
     const blockLeft = worldLeft * BIOME_SCALE / cs;
     const blockRight = worldRight * BIOME_SCALE / cs;
     const blockTop = worldTop * BIOME_SCALE / cs;
@@ -263,6 +265,8 @@ function findStructuresInView(
       for (let regX = minRegX; regX <= maxRegX; regX++) {
         const pos = getStructurePos(structType, mcVersion, seed, regX, regZ);
         if (pos) {
+          const biome = getBiomeAt(generator, 4, pos.x >> 2, 320, pos.z >> 2);
+          if (!isViableStructureBiome(structType, biome)) continue;
           markers.push({
             x: pos.x * cs / BIOME_SCALE,
             z: pos.z * cs / BIOME_SCALE,
@@ -460,7 +464,7 @@ export default function CubiomesMap({
     const handle = setTimeout(() => {
       if (genId !== structureGenId.current) return;
       const markers = findStructuresInView(
-        enabledStructures, seed, mcVersion, dimension,
+        generator, enabledStructures, seed, mcVersion, dimension,
         worldLeft, worldTop, worldRight, worldBottom,
       );
       if (genId === structureGenId.current) {
@@ -469,7 +473,7 @@ export default function CubiomesMap({
     }, 0);
 
     return () => clearTimeout(handle);
-  }, [enabledStructures, seed, mcVersion, dimension, transform, viewportWidth, viewportHeight]);
+  }, [generator, enabledStructures, seed, mcVersion, dimension, transform, viewportWidth, viewportHeight]);
 
   const chunks = useMemo(
     () => Array.from(activeChunks.values()),

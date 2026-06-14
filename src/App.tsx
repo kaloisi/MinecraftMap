@@ -34,8 +34,8 @@ import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
-import { Dimension, MCVersion, StructureType, isSlimeChunk, getStructureConfig, getStructurePos } from './CubiomesTS';
-import { lookupBiomeName } from './components/CubiomesMap';
+import { Dimension, MCVersion, StructureType, isSlimeChunk, getStructureConfig, getStructurePos, isViableStructureBiome, getBiomeAt } from './CubiomesTS';
+import { lookupBiomeName, getGenerator } from './components/CubiomesMap';
 import { MapDataFiles } from './MapDataFiles';
 import type { MapDataFile } from './MapDataFile';
 
@@ -325,6 +325,7 @@ export default function App() {
     const dimLabel = dimension === Dimension.DIM_NETHER ? 'The Nether'
       : dimension === Dimension.DIM_END ? 'The End' : 'Overworld';
 
+    const gen = getGenerator(seed, dimension, mcVersion);
     const nearby: { label: string; x: number; z: number; dist: number }[] = [];
     const SEARCH_RADIUS = 10;
     for (const group of STRUCTURE_GROUPS) {
@@ -344,6 +345,8 @@ export default function App() {
               const dz = pos.z - blockZ;
               const dist = Math.sqrt(dx * dx + dz * dz);
               if (dist < 500) {
+                const biome = getBiomeAt(gen, 4, pos.x >> 2, 320, pos.z >> 2);
+                if (!isViableStructureBiome(entry.type, biome)) continue;
                 nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
               }
             }
