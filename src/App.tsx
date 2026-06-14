@@ -232,8 +232,8 @@ export default function App() {
             </Select>
             <Box sx={{ flexGrow: 1 }} />
             <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              {hoveredBiome && <>Biome: {hoveredBiome} &nbsp;|&nbsp; </>}
               Seed: {seed.toString()}
-              {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
             </Typography>
           </Toolbar>
         </AppBar>
