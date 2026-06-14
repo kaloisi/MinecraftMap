@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -228,9 +228,19 @@ export default function App() {
       setCenterX(String(x));
       setCenterZ(String(z));
     }
-    mapDataFileRef.current.setNumber('centerX', x);
-    mapDataFileRef.current.setNumber('centerZ', z);
   }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const x = parseInt(centerX, 10);
+      const z = parseInt(centerZ, 10);
+      if (!isNaN(x) && !isNaN(z)) {
+        mapDataFileRef.current.setNumber('centerX', x);
+        mapDataFileRef.current.setNumber('centerZ', z);
+      }
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [centerX, centerZ]);
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
