@@ -9,6 +9,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import ListSubheader from '@mui/material/ListSubheader';
 import Checkbox from '@mui/material/Checkbox';
 import Radio from '@mui/material/Radio';
 import Divider from '@mui/material/Divider';
@@ -32,31 +33,49 @@ const darkTheme = createTheme({
 
 const DEFAULT_SEED = 6770262141636552371n;
 
-const STRUCTURE_ENTRIES: { type: StructureType; label: string }[] = [
-  { type: StructureType.Desert_Pyramid, label: 'Desert Pyramid' },
-  { type: StructureType.Jungle_Temple, label: 'Jungle Temple' },
-  { type: StructureType.Swamp_Hut, label: 'Swamp Hut' },
-  { type: StructureType.Igloo, label: 'Igloo' },
-  { type: StructureType.Village, label: 'Village' },
-  { type: StructureType.Ocean_Ruin, label: 'Ocean Ruin' },
-  { type: StructureType.Shipwreck, label: 'Shipwreck' },
-  { type: StructureType.Monument, label: 'Monument' },
-  { type: StructureType.Mansion, label: 'Mansion' },
-  { type: StructureType.Outpost, label: 'Outpost' },
-  { type: StructureType.Ruined_Portal, label: 'Ruined Portal' },
-  { type: StructureType.Ruined_Portal_N, label: 'Ruined Portal (Nether)' },
-  { type: StructureType.Ancient_City, label: 'Ancient City' },
-  { type: StructureType.Treasure, label: 'Treasure' },
-  { type: StructureType.Mineshaft, label: 'Mineshaft' },
-  { type: StructureType.Desert_Well, label: 'Desert Well' },
-  { type: StructureType.Geode, label: 'Geode' },
-  { type: StructureType.Fortress, label: 'Fortress' },
-  { type: StructureType.Bastion, label: 'Bastion' },
-  { type: StructureType.End_City, label: 'End City' },
-  { type: StructureType.End_Gateway, label: 'End Gateway' },
-  { type: StructureType.End_Island, label: 'End Island' },
-  { type: StructureType.Trail_Ruins, label: 'Trail Ruins' },
-  { type: StructureType.Trial_Chambers, label: 'Trial Chambers' },
+interface StructureEntry { type: StructureType; label: string }
+interface StructureGroup { dimension: string; entries: StructureEntry[] }
+
+const STRUCTURE_GROUPS: StructureGroup[] = [
+  {
+    dimension: 'Overworld',
+    entries: [
+      { type: StructureType.Village, label: 'Village' },
+      { type: StructureType.Desert_Pyramid, label: 'Desert Pyramid' },
+      { type: StructureType.Jungle_Temple, label: 'Jungle Temple' },
+      { type: StructureType.Swamp_Hut, label: 'Swamp Hut' },
+      { type: StructureType.Igloo, label: 'Igloo' },
+      { type: StructureType.Ocean_Ruin, label: 'Ocean Ruin' },
+      { type: StructureType.Shipwreck, label: 'Shipwreck' },
+      { type: StructureType.Monument, label: 'Monument' },
+      { type: StructureType.Mansion, label: 'Mansion' },
+      { type: StructureType.Outpost, label: 'Outpost' },
+      { type: StructureType.Ruined_Portal, label: 'Ruined Portal' },
+      { type: StructureType.Ancient_City, label: 'Ancient City' },
+      { type: StructureType.Treasure, label: 'Treasure' },
+      { type: StructureType.Mineshaft, label: 'Mineshaft' },
+      { type: StructureType.Desert_Well, label: 'Desert Well' },
+      { type: StructureType.Geode, label: 'Geode' },
+      { type: StructureType.Trail_Ruins, label: 'Trail Ruins' },
+      { type: StructureType.Trial_Chambers, label: 'Trial Chambers' },
+    ],
+  },
+  {
+    dimension: 'The Nether',
+    entries: [
+      { type: StructureType.Fortress, label: 'Fortress' },
+      { type: StructureType.Bastion, label: 'Bastion' },
+      { type: StructureType.Ruined_Portal_N, label: 'Ruined Portal' },
+    ],
+  },
+  {
+    dimension: 'The End',
+    entries: [
+      { type: StructureType.End_City, label: 'End City' },
+      { type: StructureType.End_Gateway, label: 'End Gateway' },
+      { type: StructureType.End_Island, label: 'End Island' },
+    ],
+  },
 ];
 
 const VERSION_ENTRIES: { version: MCVersion; label: string }[] = [
@@ -221,16 +240,21 @@ export default function App() {
               onClose={handleStructMenuClose}
               slotProps={{ paper: { style: { maxHeight: '80vh' } } }}
             >
-              {STRUCTURE_ENTRIES.map(({ type, label }) => (
-                <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
-                  <Checkbox
-                    checked={enabledStructures.has(type)}
-                    size="small"
-                    sx={{ p: 0, mr: 1 }}
-                  />
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              ))}
+              {STRUCTURE_GROUPS.map((group) => [
+                <ListSubheader key={`header-${group.dimension}`} sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+                  {group.dimension}
+                </ListSubheader>,
+                ...group.entries.map(({ type, label }) => (
+                  <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
+                    <Checkbox
+                      checked={enabledStructures.has(type)}
+                      size="small"
+                      sx={{ p: 0, mr: 1 }}
+                    />
+                    <ListItemText>{label}</ListItemText>
+                  </MenuItem>
+                )),
+              ])}
             </Menu>
             <Select
               value={dimension}
