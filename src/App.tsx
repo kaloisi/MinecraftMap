@@ -140,6 +140,7 @@ export default function App() {
   const mapRef = useRef<MapViewerHandle>(null);
   const mapDataFileRef = useRef<MapDataFile>(mapDataFiles.getMapDataFile(seed));
   const isUserEditingCoords = useRef(false);
+  const isRestoringPosition = useRef(initial.centerX !== 0 || initial.centerZ !== 0);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -147,6 +148,7 @@ export default function App() {
     if (initial.centerX !== 0 || initial.centerZ !== 0) {
       const frame = requestAnimationFrame(() => {
         mapRef.current?.goToPosition(initial.centerX, initial.centerZ);
+        isRestoringPosition.current = false;
       });
       return () => cancelAnimationFrame(frame);
     }
@@ -241,10 +243,9 @@ export default function App() {
   }, []);
 
   const handleCenterChange = useCallback((x: number, z: number) => {
-    if (!isUserEditingCoords.current) {
-      setCenterX(formatCoord(x));
-      setCenterZ(formatCoord(z));
-    }
+    if (isRestoringPosition.current || isUserEditingCoords.current) return;
+    setCenterX(formatCoord(x));
+    setCenterZ(formatCoord(z));
   }, []);
 
   useEffect(() => {
