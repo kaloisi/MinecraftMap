@@ -342,7 +342,7 @@ export default function App() {
               const dx = pos.x - blockX;
               const dz = pos.z - blockZ;
               const dist = Math.sqrt(dx * dx + dz * dz);
-              if (dist < 1600) {
+              if (dist < 500) {
                 nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
               }
             }
@@ -354,7 +354,7 @@ export default function App() {
 
     setLocationDialogData({
       blockX, blockZ, chunkX, chunkZ, regionX, regionZ,
-      biome, slimeChunk: slime, nearbyStructures: nearby.slice(0, 15),
+      biome, slimeChunk: slime, nearbyStructures: nearby.slice(0, 10),
       dimensionLabel: dimLabel,
     });
     setLocationDialogOpen(true);
@@ -770,7 +770,7 @@ export default function App() {
             </Table>
             {locationDialogData.nearbyStructures.length > 0 && (
               <>
-                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Nearby Structures (within 1600 blocks)</Typography>
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Nearby Structures (within 500 blocks)</Typography>
                 <Table size="small">
                   <TableBody>
                     {locationDialogData.nearbyStructures.map((s, i) => (
@@ -785,7 +785,7 @@ export default function App() {
               </>
             )}
             {locationDialogData.nearbyStructures.length === 0 && (
-              <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>No structures found within 1600 blocks.</Typography>
+              <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>No structures found within 500 blocks.</Typography>
             )}
           </DialogContent>
         )}
