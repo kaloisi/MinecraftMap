@@ -1,4 +1,5 @@
-import type { Seed, MapDataStorage } from './MapDataStorage';
+import type { Seed } from './MapDataStorage';
+import { MapDataStorage } from './MapDataStorage';
 import { MapDataFile } from './MapDataFile';
 
 const SEEDS_KEY = 'mapdata:seeds';
@@ -22,7 +23,7 @@ const MOST_RECENT_SEED_KEY = 'mapdata:mostRecentSeed';
 export class MapDataFiles {
   private readonly storage: MapDataStorage;
 
-  constructor(storage: MapDataStorage = localStorage) {
+  constructor(storage: MapDataStorage = new MapDataStorage()) {
     this.storage = storage;
   }
 
@@ -30,25 +31,24 @@ export class MapDataFiles {
     const seeds = this.getExistingSeeds();
     seeds.add(seed);
     this.saveSeeds(seeds);
-    this.storage.setItem(MOST_RECENT_SEED_KEY, seed.toString());
+    this.storage.setString(MOST_RECENT_SEED_KEY, seed.toString());
     return new MapDataFile(seed, this.storage);
   }
 
   getExistingSeeds(): Set<Seed> {
-    const raw = this.storage.getItem(SEEDS_KEY);
+    const raw = this.storage.getJSON<string[]>(SEEDS_KEY);
     if (!raw) return new Set();
-    const arr: Seed[] = JSON.parse(raw).map((s: string) => BigInt(s));
-    return new Set(arr);
+    return new Set(raw.map((s) => BigInt(s)));
   }
 
   getMostRecentSeed(): Seed | null {
-    const raw = this.storage.getItem(MOST_RECENT_SEED_KEY);
+    const raw = this.storage.getString(MOST_RECENT_SEED_KEY);
     if (!raw) return null;
     return BigInt(raw);
   }
 
   private saveSeeds(seeds: Set<Seed>): void {
     const arr = Array.from(seeds).map((s) => s.toString());
-    this.storage.setItem(SEEDS_KEY, JSON.stringify(arr));
+    this.storage.setJSON(SEEDS_KEY, arr);
   }
 }

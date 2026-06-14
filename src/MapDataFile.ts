@@ -1,12 +1,13 @@
-import type { Seed, MapDataStorage } from './MapDataStorage';
+import type { Seed } from './MapDataStorage';
+import { MapDataStorage } from './MapDataStorage';
 
 /**
  * Per-seed data store for a single Minecraft world.
  *
  * Each MapDataFile namespaces its keys under `map:<seed>:` so that
  * multiple worlds can coexist in the same storage backend without
- * collisions. Typed getter/setter pairs handle serialization for
- * common value types (string, number, boolean, JSON objects).
+ * collisions. All typed get/set operations are delegated to the
+ * underlying {@link MapDataStorage} instance.
  *
  * Instances are created via {@link MapDataFiles.getMapDataFile} rather
  * than constructed directly, so the factory can track known seeds.
@@ -22,7 +23,7 @@ export class MapDataFile {
   private readonly storage: MapDataStorage;
   private readonly keyPrefix: string;
 
-  constructor(seed: Seed, storage: MapDataStorage = localStorage) {
+  constructor(seed: Seed, storage: MapDataStorage = new MapDataStorage()) {
     this.seed = seed;
     this.storage = storage;
     this.keyPrefix = `map:${seed.toString()}:`;
@@ -33,45 +34,38 @@ export class MapDataFile {
   }
 
   getString(key: string): string | null {
-    return this.storage.getItem(this.keyPrefix + key);
+    return this.storage.getString(this.keyPrefix + key);
   }
 
   setString(key: string, value: string): void {
-    this.storage.setItem(this.keyPrefix + key, value);
+    this.storage.setString(this.keyPrefix + key, value);
   }
 
   getNumber(key: string): number | null {
-    const raw = this.storage.getItem(this.keyPrefix + key);
-    if (raw === null) return null;
-    const n = Number(raw);
-    return Number.isNaN(n) ? null : n;
+    return this.storage.getNumber(this.keyPrefix + key);
   }
 
   setNumber(key: string, value: number): void {
-    this.storage.setItem(this.keyPrefix + key, String(value));
+    this.storage.setNumber(this.keyPrefix + key, value);
   }
 
   getBoolean(key: string): boolean | null {
-    const raw = this.storage.getItem(this.keyPrefix + key);
-    if (raw === null) return null;
-    return raw === 'true';
+    return this.storage.getBoolean(this.keyPrefix + key);
   }
 
   setBoolean(key: string, value: boolean): void {
-    this.storage.setItem(this.keyPrefix + key, String(value));
+    this.storage.setBoolean(this.keyPrefix + key, value);
   }
 
   getJSON<T>(key: string): T | null {
-    const raw = this.storage.getItem(this.keyPrefix + key);
-    if (raw === null) return null;
-    return JSON.parse(raw) as T;
+    return this.storage.getJSON<T>(this.keyPrefix + key);
   }
 
   setJSON<T>(key: string, value: T): void {
-    this.storage.setItem(this.keyPrefix + key, JSON.stringify(value));
+    this.storage.setJSON(this.keyPrefix + key, value);
   }
 
   remove(key: string): void {
-    this.storage.removeItem(this.keyPrefix + key);
+    this.storage.remove(this.keyPrefix + key);
   }
 }
