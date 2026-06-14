@@ -409,7 +409,7 @@ export default function App() {
             />
           </Toolbar>
         </AppBar>
-        <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden' }}>
+        <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
           <Typography
             variant="body2"
