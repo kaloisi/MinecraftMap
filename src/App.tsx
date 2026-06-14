@@ -9,6 +9,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -22,7 +23,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
-import { Dimension } from './CubiomesTS';
+import { Dimension, StructureType } from './CubiomesTS';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
@@ -30,28 +31,66 @@ const darkTheme = createTheme({
 
 const DEFAULT_SEED = 0n;
 
+const STRUCTURE_ENTRIES: { type: StructureType; label: string }[] = [
+  { type: StructureType.Desert_Pyramid, label: 'Desert Pyramid' },
+  { type: StructureType.Jungle_Temple, label: 'Jungle Temple' },
+  { type: StructureType.Swamp_Hut, label: 'Swamp Hut' },
+  { type: StructureType.Igloo, label: 'Igloo' },
+  { type: StructureType.Village, label: 'Village' },
+  { type: StructureType.Ocean_Ruin, label: 'Ocean Ruin' },
+  { type: StructureType.Shipwreck, label: 'Shipwreck' },
+  { type: StructureType.Monument, label: 'Monument' },
+  { type: StructureType.Mansion, label: 'Mansion' },
+  { type: StructureType.Outpost, label: 'Outpost' },
+  { type: StructureType.Ruined_Portal, label: 'Ruined Portal' },
+  { type: StructureType.Ruined_Portal_N, label: 'Ruined Portal (Nether)' },
+  { type: StructureType.Ancient_City, label: 'Ancient City' },
+  { type: StructureType.Treasure, label: 'Treasure' },
+  { type: StructureType.Mineshaft, label: 'Mineshaft' },
+  { type: StructureType.Desert_Well, label: 'Desert Well' },
+  { type: StructureType.Geode, label: 'Geode' },
+  { type: StructureType.Fortress, label: 'Fortress' },
+  { type: StructureType.Bastion, label: 'Bastion' },
+  { type: StructureType.End_City, label: 'End City' },
+  { type: StructureType.End_Gateway, label: 'End Gateway' },
+  { type: StructureType.End_Island, label: 'End Island' },
+  { type: StructureType.Trail_Ruins, label: 'Trail Ruins' },
+  { type: StructureType.Trial_Chambers, label: 'Trial Chambers' },
+];
+
 export default function App() {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
+  const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
-  const menuOpen = Boolean(menuAnchor);
+  const fileMenuOpen = Boolean(fileMenuAnchor);
+  const structMenuOpen = Boolean(structMenuAnchor);
 
-  const handleMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    setMenuAnchor(e.currentTarget);
+  const handleFileMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setFileMenuAnchor(e.currentTarget);
   }, []);
 
-  const handleMenuClose = useCallback(() => {
-    setMenuAnchor(null);
+  const handleFileMenuClose = useCallback(() => {
+    setFileMenuAnchor(null);
+  }, []);
+
+  const handleStructMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    setStructMenuAnchor(e.currentTarget);
+  }, []);
+
+  const handleStructMenuClose = useCallback(() => {
+    setStructMenuAnchor(null);
   }, []);
 
   const handleNewSeed = useCallback(() => {
-    handleMenuClose();
+    handleFileMenuClose();
     setSeedInput('');
     setSeedDialogOpen(true);
-  }, [handleMenuClose]);
+  }, [handleFileMenuClose]);
 
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
@@ -69,14 +108,26 @@ export default function App() {
   }, [seedInput]);
 
   const handleGoToOrigin = useCallback(() => {
-    handleMenuClose();
+    handleFileMenuClose();
     mapRef.current?.goToOrigin();
-  }, [handleMenuClose]);
+  }, [handleFileMenuClose]);
 
   const handleCopySeed = useCallback(() => {
-    handleMenuClose();
+    handleFileMenuClose();
     navigator.clipboard.writeText(seed.toString());
-  }, [handleMenuClose, seed]);
+  }, [handleFileMenuClose, seed]);
+
+  const handleToggleStructure = useCallback((structType: StructureType) => {
+    setEnabledStructures((prev) => {
+      const next = new Set(prev);
+      if (next.has(structType)) {
+        next.delete(structType);
+      } else {
+        next.add(structType);
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -89,15 +140,15 @@ export default function App() {
             </Typography>
             <Button
               color="inherit"
-              onClick={handleMenuOpen}
-              sx={{ textTransform: 'none', mr: 2 }}
+              onClick={handleFileMenuOpen}
+              sx={{ textTransform: 'none', mr: 1 }}
             >
               File
             </Button>
             <Menu
-              anchorEl={menuAnchor}
-              open={menuOpen}
-              onClose={handleMenuClose}
+              anchorEl={fileMenuAnchor}
+              open={fileMenuOpen}
+              onClose={handleFileMenuClose}
             >
               <MenuItem onClick={handleNewSeed}>
                 <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
@@ -112,6 +163,30 @@ export default function App() {
                 <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>Copy Seed</ListItemText>
               </MenuItem>
+            </Menu>
+            <Button
+              color="inherit"
+              onClick={handleStructMenuOpen}
+              sx={{ textTransform: 'none', mr: 2 }}
+            >
+              Structures
+            </Button>
+            <Menu
+              anchorEl={structMenuAnchor}
+              open={structMenuOpen}
+              onClose={handleStructMenuClose}
+              slotProps={{ paper: { style: { maxHeight: 400 } } }}
+            >
+              {STRUCTURE_ENTRIES.map(({ type, label }) => (
+                <MenuItem key={type} onClick={() => handleToggleStructure(type)} dense>
+                  <Checkbox
+                    checked={enabledStructures.has(type)}
+                    size="small"
+                    sx={{ p: 0, mr: 1 }}
+                  />
+                  <ListItemText>{label}</ListItemText>
+                </MenuItem>
+              ))}
             </Menu>
             <Select
               value={dimension}
