@@ -159,16 +159,18 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   }, []);
 
   const initialCenterRef = useRef(initialCenter);
+  const initialZoomRef = useRef(initialZoom);
 
   useEffect(() => {
     if (initialized.current || viewport.width === 0 || viewport.height === 0) return;
     initialized.current = true;
     const cx = initialCenterRef.current?.x ?? 0;
     const cz = initialCenterRef.current?.z ?? 0;
+    const scale = initialZoomRef.current ?? INITIAL_SCALE;
     setTransform({
-      scale: INITIAL_SCALE,
-      x: viewport.width / 2 - (cx / BIOME_SCALE) * INITIAL_SCALE,
-      y: viewport.height / 2 - (cz / BIOME_SCALE) * INITIAL_SCALE,
+      scale,
+      x: viewport.width / 2 - (cx / BIOME_SCALE) * scale,
+      y: viewport.height / 2 - (cz / BIOME_SCALE) * scale,
     });
   }, [viewport]);
 
