@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -29,12 +29,38 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
 import { Dimension, MCVersion, StructureType } from './CubiomesTS';
+import { MapDataFiles } from './MapDataFiles';
+import type { MapDataFile } from './MapDataFile';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
 });
 
 const DEFAULT_SEED = 6770262141636552371n;
+const mapDataFiles = new MapDataFiles();
+
+function loadStateFromFile(file: MapDataFile) {
+  const version = file.getNumber('mcVersion') as MCVersion | null;
+  const structures = file.getJSON<number[]>('enabledStructures');
+  const x = file.getNumber('centerX');
+  const z = file.getNumber('centerZ');
+  return {
+    mcVersion: version ?? MCVersion.MC_1_21,
+    enabledStructures: new Set<StructureType>(structures ?? []),
+    centerX: x ?? 0,
+    centerZ: z ?? 0,
+  };
+}
+
+function getInitialSeed(): bigint {
+  return mapDataFiles.getMostRecentSeed() ?? DEFAULT_SEED;
+}
+
+function getInitialState() {
+  const seed = getInitialSeed();
+  const file = mapDataFiles.getMapDataFile(seed);
+  return { seed, ...loadStateFromFile(file) };
+}
 
 interface StructureEntry { type: StructureType; label: string }
 interface StructureGroup { dimension: string; entries: StructureEntry[] }
@@ -89,20 +115,22 @@ const VERSION_ENTRIES: { version: MCVersion; label: string }[] = [
 ];
 
 export default function App() {
-  const [seed, setSeed] = useState(DEFAULT_SEED);
+  const initial = useMemo(getInitialState, []);
+  const [seed, setSeed] = useState(initial.seed);
   const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
-  const [mcVersion, setMcVersion] = useState<MCVersion>(MCVersion.MC_1_21);
-  const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(new Set());
+  const [mcVersion, setMcVersion] = useState<MCVersion>(initial.mcVersion);
+  const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(initial.enabledStructures);
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
-  const [centerX, setCenterX] = useState('0');
-  const [centerZ, setCenterZ] = useState('0');
+  const [centerX, setCenterX] = useState(String(initial.centerX));
+  const [centerZ, setCenterZ] = useState(String(initial.centerZ));
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
+  const mapDataFileRef = useRef<MapDataFile>(mapDataFiles.getMapDataFile(seed));
   const isUserEditingCoords = useRef(false);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
@@ -141,20 +169,36 @@ export default function App() {
     setSeedDialogOpen(true);
   }, [handleFileMenuClose]);
 
+  const loadSeed = useCallback((newSeed: bigint) => {
+    const file = mapDataFiles.getMapDataFile(newSeed);
+    mapDataFileRef.current = file;
+    const state = loadStateFromFile(file);
+    setSeed(newSeed);
+    setMcVersion(state.mcVersion);
+    setEnabledStructures(state.enabledStructures);
+    setCenterX(String(state.centerX));
+    setCenterZ(String(state.centerZ));
+    if (state.centerX !== 0 || state.centerZ !== 0) {
+      setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
+    }
+  }, []);
+
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
     if (trimmed === '') return;
+    let newSeed: bigint;
     try {
-      setSeed(BigInt(trimmed));
+      newSeed = BigInt(trimmed);
     } catch {
       const hash = Array.from(new TextEncoder().encode(trimmed)).reduce(
         (acc, b) => (acc * 31 + b) | 0,
         0,
       );
-      setSeed(BigInt(hash));
+      newSeed = BigInt(hash);
     }
+    loadSeed(newSeed);
     setSeedDialogOpen(false);
-  }, [seedInput]);
+  }, [seedInput, loadSeed]);
 
   const handleGoToOrigin = useCallback(() => {
     handleFileMenuClose();
@@ -174,6 +218,7 @@ export default function App() {
       } else {
         next.add(structType);
       }
+      mapDataFileRef.current.setJSON('enabledStructures', Array.from(next));
       return next;
     });
   }, []);
@@ -183,6 +228,8 @@ export default function App() {
       setCenterX(String(x));
       setCenterZ(String(z));
     }
+    mapDataFileRef.current.setNumber('centerX', x);
+    mapDataFileRef.current.setNumber('centerZ', z);
   }, []);
 
   const handleCoordsSubmit = useCallback(() => {
@@ -232,7 +279,7 @@ export default function App() {
               {VERSION_ENTRIES.map(({ version, label }) => (
                 <MenuItem
                   key={version}
-                  onClick={() => { setMcVersion(version); handleFileMenuClose(); }}
+                  onClick={() => { setMcVersion(version); mapDataFileRef.current.setNumber('mcVersion', version); handleFileMenuClose(); }}
                   dense
                 >
                   <Radio
