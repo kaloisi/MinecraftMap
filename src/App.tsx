@@ -21,10 +21,10 @@ import Select from '@mui/material/Select';
 import Popover from '@mui/material/Popover';
 import MenuList from '@mui/material/MenuList';
 import Paper from '@mui/material/Paper';
+import IconButton from '@mui/material/IconButton';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import AddIcon from '@mui/icons-material/Add';
-import HomeIcon from '@mui/icons-material/Home';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
@@ -247,14 +247,12 @@ export default function App() {
   }, [seedInput, loadSeed]);
 
   const handleGoToOrigin = useCallback(() => {
-    handleFileMenuClose();
     mapRef.current?.goToOrigin();
-  }, [handleFileMenuClose]);
+  }, []);
 
-  const handleCopySeed = useCallback(() => {
-    handleFileMenuClose();
+  const handleCopySeedFromFooter = useCallback(() => {
     navigator.clipboard.writeText(seed.toString());
-  }, [handleFileMenuClose, seed]);
+  }, [seed]);
 
   const handleToggleStructure = useCallback((structType: StructureType) => {
     setEnabledStructures((prev) => {
@@ -322,14 +320,13 @@ export default function App() {
                 <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>New Seed…</ListItemText>
               </MenuItem>
-              <MenuItem onClick={handleGoToOrigin}>
-                <ListItemIcon><HomeIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>Go to Origin</ListItemText>
-              </MenuItem>
-              <Divider />
-              <MenuItem onClick={handleCopySeed}>
-                <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>Copy Seed</ListItemText>
+              <MenuItem
+                onMouseEnter={handleRecentMenuOpen}
+                onClick={handleRecentMenuOpen}
+                selected={recentMenuAnchor !== null}
+              >
+                <ListItemText>Recent Maps</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
               </MenuItem>
               <Divider />
               <MenuItem
@@ -338,14 +335,6 @@ export default function App() {
                 selected={versionMenuAnchor !== null}
               >
                 <ListItemText>MC Version</ListItemText>
-                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
-              </MenuItem>
-              <MenuItem
-                onMouseEnter={handleRecentMenuOpen}
-                onClick={handleRecentMenuOpen}
-                selected={recentMenuAnchor !== null}
-              >
-                <ListItemText>Recent Maps</ListItemText>
                 <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
               </MenuItem>
             </Menu>
@@ -511,12 +500,21 @@ export default function App() {
               onKeyDown={(e) => { if (e.key === 'Enter') handleCoordsSubmit(); }}
               sx={{
                 width: 90,
-                mr: 2,
+                mr: 0.5,
                 input: { color: 'inherit', py: 0.5, fontSize: '0.875rem' },
                 '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
                 '.MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' },
               }}
             />
+            <IconButton
+              color="inherit"
+              size="small"
+              onClick={handleGoToOrigin}
+              title="Go to Origin"
+              sx={{ mr: 2 }}
+            >
+              <LocationSearchingIcon fontSize="small" />
+            </IconButton>
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -532,11 +530,23 @@ export default function App() {
               px: 1.5,
               py: 0.5,
               borderRadius: 1,
-              pointerEvents: 'none',
               userSelect: 'none',
             }}
           >
-            Seed: {seed.toString()}
+            Seed:{' '}
+            <Box
+              component="span"
+              onClick={handleCopySeedFromFooter}
+              sx={{
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textDecorationColor: 'rgba(255,255,255,0.4)',
+                '&:hover': { textDecorationColor: 'rgba(255,255,255,0.85)' },
+              }}
+              title="Click to copy seed"
+            >
+              {seed.toString()}
+            </Box>
             {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
           </Typography>
         </Box>
