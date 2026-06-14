@@ -29,7 +29,7 @@ import AddIcon from '@mui/icons-material/Add';
 import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
-import type { MapViewerHandle } from './MapViewer';
+import type { MapViewerHandle, HighlightLine } from './MapViewer';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -176,6 +176,7 @@ export default function App() {
     nearbyStructures: { label: string; x: number; z: number; dist: number }[];
     dimensionLabel: string;
   } | null>(null);
+  const [hoveredStructureIndex, setHoveredStructureIndex] = useState<number | null>(null);
   const [mapName, setMapName] = useState(initial.mapName);
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [propsName, setPropsName] = useState('');
@@ -309,6 +310,7 @@ export default function App() {
   const BIOME_SCALE = 4;
 
   const handleLocationClick = useCallback((worldPos: { x: number; z: number }) => {
+    setHoveredStructureIndex(null);
     const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
     const blockX = Math.floor(worldPos.x * BIOME_SCALE / cs);
     const blockZ = Math.floor(worldPos.z * BIOME_SCALE / cs);
@@ -454,6 +456,19 @@ export default function App() {
       mapRef.current?.goToPosition(x, z);
     }
   }, [centerX, centerZ]);
+
+  const highlightLine = useMemo((): HighlightLine | null => {
+    if (hoveredStructureIndex == null || !locationDialogData) return null;
+    const s = locationDialogData.nearbyStructures[hoveredStructureIndex];
+    if (!s) return null;
+    const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
+    return {
+      fromX: locationDialogData.blockX * cs / BIOME_SCALE,
+      fromZ: locationDialogData.blockZ * cs / BIOME_SCALE,
+      toX: s.x * cs / BIOME_SCALE,
+      toZ: s.z * cs / BIOME_SCALE,
+    };
+  }, [hoveredStructureIndex, locationDialogData, dimension]);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -644,7 +659,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} />
           <Typography
             variant="body2"
             sx={{
@@ -742,13 +757,13 @@ export default function App() {
       <Drawer
         anchor="right"
         open={locationDialogOpen}
-        onClose={() => setLocationDialogOpen(false)}
+        onClose={() => { setLocationDialogOpen(false); setHoveredStructureIndex(null); }}
         variant="persistent"
         sx={{ '& .MuiDrawer-paper': { width: 340, boxSizing: 'border-box' } }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
           <Typography variant="h6">Location Details</Typography>
-          <Button size="small" onClick={() => setLocationDialogOpen(false)}>Close</Button>
+          <Button size="small" onClick={() => { setLocationDialogOpen(false); setHoveredStructureIndex(null); }}>Close</Button>
         </Box>
         <Divider />
         {locationDialogData && (
@@ -789,7 +804,14 @@ export default function App() {
                 <Table size="small">
                   <TableBody>
                     {locationDialogData.nearbyStructures.map((s, i) => (
-                      <TableRow key={i}>
+                      <TableRow
+                        key={i}
+                        hover
+                        selected={hoveredStructureIndex === i}
+                        onMouseEnter={() => setHoveredStructureIndex(i)}
+                        onMouseLeave={() => setHoveredStructureIndex(null)}
+                        sx={{ cursor: 'pointer' }}
+                      >
                         <TableCell>{s.label}</TableCell>
                         <TableCell>X: {s.x}, Z: {s.z}</TableCell>
                         <TableCell align="right">{s.dist} blocks</TableCell>
