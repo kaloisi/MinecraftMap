@@ -35,7 +35,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
 import { Dimension, MCVersion, StructureType, isSlimeChunk, getStructureConfig, getStructurePos, getBiomeAt } from './CubiomesTS';
-import { isViableStructureBiome } from './structureViability';
+import { isViableFeatureBiome } from './structureViability';
 import { lookupBiomeName, getGenerator } from './components/CubiomesMap';
 import { MapDataFiles } from './MapDataFiles';
 import type { MapDataFile } from './MapDataFile';
@@ -347,7 +347,7 @@ export default function App() {
               const dist = Math.sqrt(dx * dx + dz * dz);
               if (dist < 500) {
                 const biome = getBiomeAt(gen, 4, pos.x >> 2, 320, pos.z >> 2);
-                if (!isViableStructureBiome(entry.type, biome)) continue;
+                if (!isViableFeatureBiome(mcVersion, entry.type, biome)) continue;
                 nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
               }
             }

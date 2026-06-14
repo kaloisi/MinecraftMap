@@ -108,6 +108,7 @@ Port files in this order, placing output in `src/CubiomesTS/`:
 #### 2.7 `finders.ts` — Structure position math
 - Port `getStructureConfig`, `getFeaturePos`, `getLargeStructurePos`.
 - Port structure type enum and `StructureConfig` data table.
+- Port `isViableFeatureBiome(mc, structureType, biomeId)` — pure biome-ID check for whether a structure can generate at a given biome. Uses helper functions `isOceanic()` and `isDeepOcean()`. For MC 1.18+ only, simplify version branches (drop pre-1.18 cases). Import `BiomeId` from `biomes.ts`.
 - Port `isViableStructurePos` (Tier 2) — calls `getBiomeAt` internally.
 - **All structure position math uses plain `number`** (stays below 2⁵³). No BigInt needed.
 - Port `isSlimeChunk` (8 lines).
@@ -233,3 +234,19 @@ After a successful port:
 - **End biome classification is height-based, not climate-based.** The End uses Simplex2D noise to detect island peaks (threshold < -0.9), then classifies biomes by a height metric derived from distance-weighted elevation sums.
 - **Ocean biome IDs in cubiomes start at 44, not 40.** IDs 40-43 are the End biomes (small_end_islands through end_barrens). The original port had these shifted, which didn't matter when only Overworld was rendered but would have caused biome misidentification.
 - **Nether 8:1 coordinate scaling must be applied at the rendering layer, not the biome generation layer.** Cubiomes generates biomes in dimension-local coordinates. The map viewer must translate between display coordinates (Overworld-equivalent) and dimension-local coordinates for tile generation, biome hover lookup, and structure position display.
+
+### 2026-06-14 — Add `isViableFeatureBiome` to finders.ts
+
+**Files modified:** `finders.ts`, `index.ts`
+
+**Changes:**
+- Added `isViableFeatureBiome(mc, structureType, biomeId)` — faithful port from cubiomes `finders.c`. Checks whether a biome is valid for a given structure type.
+- Added helper functions `isOceanic()` and `isDeepOcean()` (private, used by `isViableFeatureBiome`).
+- Updated `index.ts` to export `isViableFeatureBiome`.
+- `src/structureViability.ts` (outside CubiomesTS) now re-exports `isViableFeatureBiome` from CubiomesTS instead of duplicating the logic.
+
+**Learnings:**
+- **Trail_Ruins uses `old_growth_birch_forest` (ID 155), not `birch_forest` (ID 27).** The original hand-written viability check had this wrong.
+- **Outpost (1.18+) does NOT include `savanna_plateau`.** The cubiomes source only lists desert, plains, savanna, snowy_plains, taiga, meadow, frozen_peaks, jagged_peaks, stony_peaks, snowy_slopes, grove, cherry_grove.
+- **Village does NOT include `cherry_grove` in `isViableFeatureBiome`.** Cherry grove villages are handled by `isViableStructurePos` (Tier 2 checks), not the biome-level check.
+- **Swamp_Hut only checks for `swamp`, not `mangrove_swamp`.** The C source's `isViableFeatureBiome` returns true only for `swamp`. Mangrove swamp witch huts may be handled differently in newer versions.

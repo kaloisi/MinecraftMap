@@ -33,5 +33,6 @@ export {
   getStructureConfig, getStructurePos,
   getFeaturePos, getLargeStructurePos,
   isSlimeChunk, moveStructure,
+  isViableFeatureBiome,
   type StructureConfig, type Pos,
 } from './finders';

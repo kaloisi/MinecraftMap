@@ -13,7 +13,7 @@ import {
   getStructurePos,
   getBiomeAt,
 } from '../CubiomesTS';
-import { isViableStructureBiome } from '../structureViability';
+import { isViableFeatureBiome } from '../structureViability';
 import type { Range } from '../CubiomesTS';
 
 export interface CubiomesMapProps {
@@ -266,7 +266,7 @@ function findStructuresInView(
         const pos = getStructurePos(structType, mcVersion, seed, regX, regZ);
         if (pos) {
           const biome = getBiomeAt(generator, 4, pos.x >> 2, 320, pos.z >> 2);
-          if (!isViableStructureBiome(structType, biome)) continue;
+          if (!isViableFeatureBiome(mcVersion, structType, biome)) continue;
           markers.push({
             x: pos.x * cs / BIOME_SCALE,
             z: pos.z * cs / BIOME_SCALE,
