@@ -140,7 +140,8 @@ export default function App() {
   const mapRef = useRef<MapViewerHandle>(null);
   const mapDataFileRef = useRef<MapDataFile>(mapDataFiles.getMapDataFile(seed));
   const isUserEditingCoords = useRef(false);
-  const isRestoringPosition = useRef(initial.centerX !== 0 || initial.centerZ !== 0);
+  const coordsDirty = useRef(false);
+  const lastSavedCoords = useRef({ x: initial.centerX, z: initial.centerZ });
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
@@ -148,7 +149,6 @@ export default function App() {
     if (initial.centerX !== 0 || initial.centerZ !== 0) {
       const frame = requestAnimationFrame(() => {
         mapRef.current?.goToPosition(initial.centerX, initial.centerZ);
-        isRestoringPosition.current = false;
       });
       return () => cancelAnimationFrame(frame);
     }
@@ -189,9 +189,12 @@ export default function App() {
   }, [handleFileMenuClose]);
 
   const loadSeed = useCallback((newSeed: bigint) => {
+    if (coordsDirty.current) saveCoords();
     const file = mapDataFiles.getMapDataFile(newSeed);
     mapDataFileRef.current = file;
     const state = loadStateFromFile(file);
+    coordsDirty.current = false;
+    lastSavedCoords.current = { x: state.centerX, z: state.centerZ };
     setSeed(newSeed);
     setMcVersion(state.mcVersion);
     setEnabledStructures(state.enabledStructures);
@@ -200,7 +203,7 @@ export default function App() {
     if (state.centerX !== 0 || state.centerZ !== 0) {
       setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
     }
-  }, []);
+  }, [saveCoords]);
 
   const handleSeedSubmit = useCallback(() => {
     const trimmed = seedInput.trim();
@@ -242,23 +245,35 @@ export default function App() {
     });
   }, []);
 
+  const saveCoords = useCallback(() => {
+    const x = parseCoord(centerX);
+    const z = parseCoord(centerZ);
+    if (!isNaN(x) && !isNaN(z) && (x !== lastSavedCoords.current.x || z !== lastSavedCoords.current.z)) {
+      mapDataFileRef.current.setNumber('centerX', x);
+      mapDataFileRef.current.setNumber('centerZ', z);
+      lastSavedCoords.current = { x, z };
+      coordsDirty.current = false;
+    }
+  }, [centerX, centerZ]);
+
   const handleCenterChange = useCallback((x: number, z: number) => {
-    if (isRestoringPosition.current || isUserEditingCoords.current) return;
+    if (isUserEditingCoords.current) return;
     setCenterX(formatCoord(x));
     setCenterZ(formatCoord(z));
+    coordsDirty.current = true;
   }, []);
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      const x = parseCoord(centerX);
-      const z = parseCoord(centerZ);
-      if (!isNaN(x) && !isNaN(z)) {
-        mapDataFileRef.current.setNumber('centerX', x);
-        mapDataFileRef.current.setNumber('centerZ', z);
-      }
-    }, 1_000);
+    if (!coordsDirty.current) return;
+    const id = setTimeout(saveCoords, 1_000);
     return () => clearTimeout(id);
-  }, [centerX, centerZ]);
+  }, [centerX, centerZ, saveCoords]);
+
+  useEffect(() => {
+    const flush = () => { if (coordsDirty.current) saveCoords(); };
+    window.addEventListener('beforeunload', flush);
+    return () => window.removeEventListener('beforeunload', flush);
+  }, [saveCoords]);
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
