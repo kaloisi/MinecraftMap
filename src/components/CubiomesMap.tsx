@@ -12,6 +12,7 @@ import type { Range } from '../CubiomesTS';
 
 export interface CubiomesMapProps {
   seed: bigint;
+  dimension: Dimension;
   /** Current viewport transform from the parent MapViewer. */
   transform: { x: number; y: number; scale: number };
   /** SVG viewport dimensions in pixels. */
@@ -23,7 +24,7 @@ const TILE_SIZE = 16;
 const BUFFER_CHUNKS = 5;
 const BATCH_SIZE = 8;
 
-let cachedGen: { seed: bigint; gen: ReturnType<typeof setupGenerator> } | null = null;
+let cachedGen: { seed: bigint; dim: Dimension; gen: ReturnType<typeof setupGenerator> } | null = null;
 const tileCache = new Map<string, Int32Array>();
 const activeChunks = new Map<string, ChunkData>();
 
@@ -33,13 +34,13 @@ interface ChunkData {
   biomes: Int32Array;
 }
 
-function getGenerator(seed: bigint) {
-  if (cachedGen && cachedGen.seed === seed) return cachedGen.gen;
+function getGenerator(seed: bigint, dim: Dimension) {
+  if (cachedGen && cachedGen.seed === seed && cachedGen.dim === dim) return cachedGen.gen;
   tileCache.clear();
   activeChunks.clear();
   const gen = setupGenerator(MCVersion.MC_1_21);
-  applySeed(gen, Dimension.DIM_OVERWORLD, seed);
-  cachedGen = { seed, gen };
+  applySeed(gen, dim, seed);
+  cachedGen = { seed, dim, gen };
   return gen;
 }
 
@@ -136,11 +137,12 @@ const ChunkTile = memo(function ChunkTile({
 
 export default function CubiomesMap({
   seed,
+  dimension,
   transform,
   viewportWidth,
   viewportHeight,
 }: CubiomesMapProps) {
-  const generator = useMemo(() => getGenerator(seed), [seed]);
+  const generator = useMemo(() => getGenerator(seed, dimension), [seed, dimension]);
   const [asyncVersion, setAsyncVersion] = useState(0);
 
   const pendingKeys = useMemo(() => {

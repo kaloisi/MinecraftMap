@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Box from '@mui/material/Box';
 import CubiomesMap from './components/CubiomesMap';
+import type { Dimension } from './CubiomesTS';
 
 export interface Transform {
   x: number;
@@ -10,6 +11,7 @@ export interface Transform {
 
 export interface MapViewerProps {
   seed: bigint;
+  dimension: Dimension;
 }
 
 export interface MapViewerHandle {
@@ -18,7 +20,7 @@ export interface MapViewerHandle {
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -127,6 +129,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
           <CubiomesMap
             seed={seed}
+            dimension={dimension}
             transform={transform}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}

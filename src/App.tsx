@@ -15,12 +15,14 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import Select from '@mui/material/Select';
 import AddIcon from '@mui/icons-material/Add';
 import HomeIcon from '@mui/icons-material/Home';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle } from './MapViewer';
+import { Dimension } from './CubiomesTS';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
@@ -30,6 +32,7 @@ const DEFAULT_SEED = 0n;
 
 export default function App() {
   const [seed, setSeed] = useState(DEFAULT_SEED);
+  const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
@@ -81,6 +84,9 @@ export default function App() {
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         <AppBar position="static">
           <Toolbar variant="dense">
+            <Typography variant="h6" sx={{ mr: 2 }}>
+              Minecraft Map
+            </Typography>
             <Button
               color="inherit"
               onClick={handleMenuOpen}
@@ -107,15 +113,30 @@ export default function App() {
                 <ListItemText>Copy Seed</ListItemText>
               </MenuItem>
             </Menu>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              Minecraft Map
-            </Typography>
+            <Select
+              value={dimension}
+              onChange={(e) => setDimension(e.target.value as Dimension)}
+              size="small"
+              variant="outlined"
+              sx={{
+                color: 'inherit',
+                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
+                '.MuiSvgIcon-root': { color: 'inherit' },
+                minWidth: 140,
+              }}
+            >
+              <MenuItem value={Dimension.DIM_OVERWORLD}>Overworld</MenuItem>
+              <MenuItem value={Dimension.DIM_NETHER}>The Nether</MenuItem>
+              <MenuItem value={Dimension.DIM_END}>The End</MenuItem>
+            </Select>
+            <Box sx={{ flexGrow: 1 }} />
             <Typography variant="body2" sx={{ opacity: 0.7 }}>
               Seed: {seed.toString()}
             </Typography>
           </Toolbar>
         </AppBar>
-        <MapViewer ref={mapRef} seed={seed} />
+        <MapViewer ref={mapRef} seed={seed} dimension={dimension} />
       </Box>
 
       <Dialog
