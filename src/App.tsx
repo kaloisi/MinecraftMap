@@ -179,6 +179,17 @@ export default function App() {
     setSeedDialogOpen(true);
   }, [handleFileMenuClose]);
 
+  const saveCoords = useCallback(() => {
+    const x = parseCoord(centerX);
+    const z = parseCoord(centerZ);
+    if (!isNaN(x) && !isNaN(z) && (x !== lastSavedCoords.current.x || z !== lastSavedCoords.current.z)) {
+      mapDataFileRef.current.setNumber('centerX', x);
+      mapDataFileRef.current.setNumber('centerZ', z);
+      lastSavedCoords.current = { x, z };
+      coordsDirty.current = false;
+    }
+  }, [centerX, centerZ]);
+
   const loadSeed = useCallback((newSeed: bigint) => {
     if (coordsDirty.current) saveCoords();
     const file = mapDataFiles.getMapDataFile(newSeed);
@@ -235,17 +246,6 @@ export default function App() {
       return next;
     });
   }, []);
-
-  const saveCoords = useCallback(() => {
-    const x = parseCoord(centerX);
-    const z = parseCoord(centerZ);
-    if (!isNaN(x) && !isNaN(z) && (x !== lastSavedCoords.current.x || z !== lastSavedCoords.current.z)) {
-      mapDataFileRef.current.setNumber('centerX', x);
-      mapDataFileRef.current.setNumber('centerZ', z);
-      lastSavedCoords.current = { x, z };
-      coordsDirty.current = false;
-    }
-  }, [centerX, centerZ]);
 
   const handleCenterChange = useCallback((x: number, z: number) => {
     if (isUserEditingCoords.current) return;
