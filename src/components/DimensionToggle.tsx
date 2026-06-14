@@ -22,7 +22,7 @@ const DimensionToggle = memo(function DimensionToggle({
       sx={{
         position: 'absolute',
         bottom: 56,
-        left: 12,
+        right: 12,
         display: 'flex',
         gap: 0.5,
         zIndex: 10,
