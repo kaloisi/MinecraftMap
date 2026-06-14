@@ -37,6 +37,14 @@ const darkTheme = createTheme({
 });
 
 const DEFAULT_SEED = 6770262141636552371n;
+
+function formatCoord(n: number): string {
+  return Number.isNaN(n) ? '0' : n.toLocaleString('en-US');
+}
+
+function parseCoord(s: string): number {
+  return parseInt(s.replace(/,/g, ''), 10);
+}
 const mapDataFiles = new MapDataFiles();
 
 function loadStateFromFile(file: MapDataFile) {
@@ -125,8 +133,8 @@ export default function App() {
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState<number>(-1);
   const [hoveredBiome, setHoveredBiome] = useState<string | null>(null);
-  const [centerX, setCenterX] = useState(String(initial.centerX));
-  const [centerZ, setCenterZ] = useState(String(initial.centerZ));
+  const [centerX, setCenterX] = useState(formatCoord(initial.centerX));
+  const [centerZ, setCenterZ] = useState(formatCoord(initial.centerZ));
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seedInput, setSeedInput] = useState('');
   const mapRef = useRef<MapViewerHandle>(null);
@@ -134,6 +142,15 @@ export default function App() {
   const isUserEditingCoords = useRef(false);
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
+
+  useEffect(() => {
+    if (initial.centerX !== 0 || initial.centerZ !== 0) {
+      const frame = requestAnimationFrame(() => {
+        mapRef.current?.goToPosition(initial.centerX, initial.centerZ);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
     setFileMenuAnchor(e.currentTarget);
@@ -176,8 +193,8 @@ export default function App() {
     setSeed(newSeed);
     setMcVersion(state.mcVersion);
     setEnabledStructures(state.enabledStructures);
-    setCenterX(String(state.centerX));
-    setCenterZ(String(state.centerZ));
+    setCenterX(formatCoord(state.centerX));
+    setCenterZ(formatCoord(state.centerZ));
     if (state.centerX !== 0 || state.centerZ !== 0) {
       setTimeout(() => mapRef.current?.goToPosition(state.centerX, state.centerZ), 0);
     }
@@ -225,15 +242,15 @@ export default function App() {
 
   const handleCenterChange = useCallback((x: number, z: number) => {
     if (!isUserEditingCoords.current) {
-      setCenterX(String(x));
-      setCenterZ(String(z));
+      setCenterX(formatCoord(x));
+      setCenterZ(formatCoord(z));
     }
   }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
-      const x = parseInt(centerX, 10);
-      const z = parseInt(centerZ, 10);
+      const x = parseCoord(centerX);
+      const z = parseCoord(centerZ);
       if (!isNaN(x) && !isNaN(z)) {
         mapDataFileRef.current.setNumber('centerX', x);
         mapDataFileRef.current.setNumber('centerZ', z);
@@ -244,8 +261,8 @@ export default function App() {
 
   const handleCoordsSubmit = useCallback(() => {
     isUserEditingCoords.current = false;
-    const x = parseInt(centerX, 10);
-    const z = parseInt(centerZ, 10);
+    const x = parseCoord(centerX);
+    const z = parseCoord(centerZ);
     if (!isNaN(x) && !isNaN(z)) {
       mapRef.current?.goToPosition(x, z);
     }
