@@ -145,15 +145,6 @@ export default function App() {
   const fileMenuOpen = Boolean(fileMenuAnchor);
   const structMenuOpen = Boolean(structMenuAnchor);
 
-  useEffect(() => {
-    if (initial.centerX !== 0 || initial.centerZ !== 0) {
-      const frame = requestAnimationFrame(() => {
-        mapRef.current?.goToPosition(initial.centerX, initial.centerZ);
-      });
-      return () => cancelAnimationFrame(frame);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleFileMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
     setFileMenuAnchor(e.currentTarget);
   }, []);
@@ -443,7 +434,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} />
           <Typography
             variant="body2"
             sx={{
