@@ -241,24 +241,16 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
           )}
         </g>
         {viewport.width > 0 && viewport.height > 0 && (
-          <g pointerEvents="none">
-            <line
-              x1={viewport.width / 2 - 10}
-              y1={viewport.height / 2}
-              x2={viewport.width / 2 + 10}
-              y2={viewport.height / 2}
-              stroke="rgba(255,255,255,0.7)"
-              strokeWidth={1.5}
-            />
-            <line
-              x1={viewport.width / 2}
-              y1={viewport.height / 2 - 10}
-              x2={viewport.width / 2}
-              y2={viewport.height / 2 + 10}
-              stroke="rgba(255,255,255,0.7)"
-              strokeWidth={1.5}
-            />
-          </g>
+          <rect
+            x={viewport.width / 2 - 8}
+            y={viewport.height / 2 - 8}
+            width={16}
+            height={16}
+            fill="none"
+            stroke="rgba(255,255,255,0.7)"
+            strokeWidth={1.5}
+            pointerEvents="none"
+          />
         )}
       </svg>
     </Box>
