@@ -600,6 +600,15 @@ export default function App() {
                   <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
                 </MenuItem>
               ))}
+              <Divider />
+              <MenuItem
+                onMouseEnter={(e) => handleSubMenuOpen(e, -2)}
+                onClick={(e) => handleSubMenuOpen(e, -2)}
+                selected={activeGroupIdx === -2}
+              >
+                <ListItemText>Custom Markers</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
+              </MenuItem>
             </Menu>
             <Popover
               open={subMenuAnchor !== null}
@@ -626,6 +635,21 @@ export default function App() {
                         sx={{ p: 0, mr: 1 }}
                       />
                       <ListItemText>{label}</ListItemText>
+                    </MenuItem>
+                  ))}
+                  {activeGroupIdx === -2 && customMarkers.length === 0 && (
+                    <MenuItem disabled>
+                      <ListItemText>No custom markers</ListItemText>
+                    </MenuItem>
+                  )}
+                  {activeGroupIdx === -2 && customMarkers.map((m, i) => (
+                    <MenuItem key={i} onClick={() => {
+                      mapRef.current?.goToPosition(m.x, m.z);
+                      setCenterX(formatCoord(m.x));
+                      setCenterZ(formatCoord(m.z));
+                      handleStructMenuClose();
+                    }}>
+                      <ListItemText>{m.name}</ListItemText>
                     </MenuItem>
                   ))}
                 </MenuList>
