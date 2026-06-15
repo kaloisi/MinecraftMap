@@ -375,10 +375,11 @@ Optional `flags` parameter accepts `GeneratorFlags.LARGE_BIOMES` for large biome
 
 #### `applySeed(gen: Generator, dim: Dimension, seed: bigint): void`
 
-Seeds the generator for a specific dimension. Must be called before generating biomes. Currently only `Dimension.DIM_OVERWORLD` is supported.
+Seeds the generator for a specific dimension. Must be called before generating biomes. Supports `DIM_OVERWORLD`, `DIM_NETHER`, and `DIM_END`.
 
 ```ts
 applySeed(gen, Dimension.DIM_OVERWORLD, 123456789n);
+applySeed(gen, Dimension.DIM_NETHER, 123456789n);
 ```
 
 #### `allocCache(range: Range): Int32Array`

@@ -1,75 +1,41 @@
-# Deployed at https://kaloisi.github.io/MinecraftMap/
+# Minecraft Map Viewer
 
-# React + TypeScript + Vite
+**Deployed at https://kaloisi.github.io/MinecraftMap/**
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive biome map viewer for Minecraft Java Edition 1.18+ world seeds. Runs entirely in the browser — no server required.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Biome map rendering** — SVG-based map with pan/zoom, lazily generated biome tiles
+- **Unified Overworld/Nether map** — single coordinate space with a Google Maps-style skin toggle to switch between Overworld and Nether biome rendering
+- **Structure overlays** — markers for 20+ structure types (Villages, Temples, Fortresses, Bastions, etc.) from both Overworld and Nether, always visible regardless of active skin
+- **Location inspector** — click any point to open a drawer with Overworld and Nether coordinates, biome info, slime chunk status, and nearby structures from both dimensions
+- **Per-seed persistence** — viewport position, zoom, MC version, enabled structures, and map name saved to localStorage
+- **Multi-seed support** — switch between seeds via the Maps menu with recent map history
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Framework:** React 19 + TypeScript (Vite)
+- **UI:** MUI (Material UI) with dark theme
+- **Biome generation:** TypeScript port of [cubiomes](https://github.com/Cubitect/cubiomes) (MIT-licensed)
+- **Rendering:** SVG with optimized rect merging
+- **Deploy:** GitHub Pages via GitHub Actions
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev      # dev server at localhost:5173
+npm run build    # production build
+npm run lint     # eslint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Supported Minecraft Versions
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+MC 1.18, 1.19, 1.20, 1.21 — selectable via Maps > Properties.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Documentation
+
+- [`CLAUDE.md`](CLAUDE.md) — project instructions and architecture overview
+- [`docs/MASTER_PROMPT.md`](docs/MASTER_PROMPT.md) — full design document
+- [`src/CubiomesTS/README.md`](src/CubiomesTS/README.md) — cubiomes API reference
