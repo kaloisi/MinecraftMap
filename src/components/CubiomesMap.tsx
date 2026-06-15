@@ -304,6 +304,7 @@ const StructureOverlay = memo(function StructureOverlay({
   markers: StructureMarker[];
   scale: number;
 }) {
+  const radius = Math.max(MARKER_RADIUS, 6 / scale);
   const fontSize = Math.max(2, 8 / scale);
   const showLabels = scale >= 2;
   return (
@@ -315,15 +316,15 @@ const StructureOverlay = memo(function StructureOverlay({
             <circle
               cx={m.x}
               cy={m.z}
-              r={MARKER_RADIUS}
+              r={radius}
               fill={color}
               stroke="#000"
-              strokeWidth={0.3}
+              strokeWidth={Math.max(0.3, 1 / scale)}
             />
             {showLabels && (
               <text
                 x={m.x}
-                y={m.z - MARKER_RADIUS - 0.5}
+                y={m.z - radius - 0.5}
                 textAnchor="middle"
                 fill="#fff"
                 stroke="#000"
@@ -348,6 +349,7 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
   markers: CustomMarker[];
   scale: number;
 }) {
+  const radius = Math.max(MARKER_RADIUS, 6 / scale);
   const fontSize = Math.max(2, 8 / scale);
   const showLabels = scale >= 2;
   return (
@@ -360,15 +362,15 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
             <circle
               cx={wx}
               cy={wz}
-              r={MARKER_RADIUS}
+              r={radius}
               fill="#FF1744"
               stroke="#FFF"
-              strokeWidth={0.3}
+              strokeWidth={Math.max(0.3, 1 / scale)}
             />
             {showLabels && (
               <text
                 x={wx}
-                y={wz - MARKER_RADIUS - 0.5}
+                y={wz - radius - 0.5}
                 textAnchor="middle"
                 fill="#FF1744"
                 stroke="#000"
