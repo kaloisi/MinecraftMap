@@ -853,11 +853,16 @@ export default function App() {
                     fullWidth
                     value={isMarked ? (existingMarker?.name ?? '') : markerName}
                     onChange={(e) => {
-                      if (!isMarked) {
+                      if (isMarked) {
+                        const file = mapDataFileRef.current;
+                        file.deleteMarker(locationDialogData.blockX, locationDialogData.blockZ);
+                        file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name: e.target.value });
+                        setCustomMarkers(file.getMarkers());
+                      } else {
                         setMarkerName(e.target.value);
                       }
                     }}
-                    slotProps={{ input: { readOnly: isMarked } }}
+                    slotProps={{ input: { readOnly: !isMarked } }}
                     sx={{ mt: 0.5 }}
                   />
                 </Box>
