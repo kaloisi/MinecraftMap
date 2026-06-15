@@ -176,7 +176,7 @@ export default function App() {
     netherChunkX: number; netherChunkZ: number;
     biome: string;
     slimeChunk: boolean;
-    nearbyStructures: { label: string; x: number; z: number; dist: number }[];
+    nearbyStructures: { label: string; x: number; z: number; dist: number; dimScale: number }[];
     dimensionLabel: string;
   } | null>(null);
   const [hoveredStructureIndex, setHoveredStructureIndex] = useState<number | null>(null);
@@ -337,15 +337,16 @@ export default function App() {
 
     const dimLabel = dimension === Dimension.DIM_NETHER ? 'Nether' : 'Overworld';
 
-    const gen = getGenerator(seed, dimension, mcVersion);
-    const nearby: { label: string; x: number; z: number; dist: number }[] = [];
+    const nearby: { label: string; x: number; z: number; dist: number; dimScale: number }[] = [];
     const SEARCH_RADIUS = 10;
-    const searchBlockX = dimension === Dimension.DIM_NETHER ? netherBlockX : owBlockX;
-    const searchBlockZ = dimension === Dimension.DIM_NETHER ? netherBlockZ : owBlockZ;
     for (const group of STRUCTURE_GROUPS) {
       for (const entry of group.entries) {
         const config = getStructureConfig(entry.type, mcVersion);
-        if (!config || config.dim !== dimension) continue;
+        if (!config || config.dim === Dimension.DIM_END) continue;
+        const isNether = config.dim === Dimension.DIM_NETHER;
+        const searchBlockX = isNether ? netherBlockX : owBlockX;
+        const searchBlockZ = isNether ? netherBlockZ : owBlockZ;
+        const gen = getGenerator(seed, config.dim, mcVersion);
         const regionBlockSize = config.regionSize * 16;
         const minReg = Math.floor((searchBlockX - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
         const maxReg = Math.ceil((searchBlockX + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
@@ -361,7 +362,9 @@ export default function App() {
               if (dist < 500) {
                 const biome = getBiomeAt(gen, 4, pos.x >> 2, 320, pos.z >> 2);
                 if (!isViableFeatureBiome(mcVersion, entry.type, biome)) continue;
-                nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
+                const dimSuffix = isNether ? ' (Nether)' : '';
+                const dimScale = isNether ? NETHER_RATIO : 1;
+                nearby.push({ label: entry.label + dimSuffix, x: pos.x, z: pos.z, dist: Math.round(dist), dimScale });
               }
             }
           }
@@ -473,14 +476,13 @@ export default function App() {
     if (hoveredStructureIndex == null || !locationDialogData) return null;
     const s = locationDialogData.nearbyStructures[hoveredStructureIndex];
     if (!s) return null;
-    const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
     return {
       fromX: locationDialogData.blockX / BIOME_SCALE,
       fromZ: locationDialogData.blockZ / BIOME_SCALE,
-      toX: s.x * cs / BIOME_SCALE,
-      toZ: s.z * cs / BIOME_SCALE,
+      toX: s.x * s.dimScale / BIOME_SCALE,
+      toZ: s.z * s.dimScale / BIOME_SCALE,
     };
-  }, [hoveredStructureIndex, locationDialogData, dimension]);
+  }, [hoveredStructureIndex, locationDialogData]);
 
   return (
     <ThemeProvider theme={darkTheme}>

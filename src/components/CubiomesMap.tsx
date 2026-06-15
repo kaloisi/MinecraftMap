@@ -233,43 +233,55 @@ interface StructureMarker {
 }
 
 function findStructuresInView(
-  generator: ReturnType<typeof setupGenerator>,
-  enabledStructures: Set<StructureType>,
   seed: bigint,
+  enabledStructures: Set<StructureType>,
   mcVersion: MCVersion,
-  dimension: Dimension,
   worldLeft: number,
   worldTop: number,
   worldRight: number,
   worldBottom: number,
 ): StructureMarker[] {
   const markers: StructureMarker[] = [];
-  const cs = dimCoordScale(dimension);
+
+  const generatorsByDim = new Map<Dimension, ReturnType<typeof setupGenerator>>();
+  function getGen(dim: Dimension) {
+    let gen = generatorsByDim.get(dim);
+    if (!gen) {
+      gen = setupGenerator(mcVersion);
+      applySeed(gen, dim, seed);
+      generatorsByDim.set(dim, gen);
+    }
+    return gen;
+  }
 
   for (const structType of enabledStructures) {
     const config = getStructureConfig(structType, mcVersion);
     if (!config) continue;
-    if (config.dim !== dimension) continue;
+    if (config.dim === Dimension.DIM_END) continue;
+
+    const structDimScale = dimCoordScale(config.dim);
 
     const regionBlockSize = config.regionSize * 16;
-    const blockLeft = worldLeft * BIOME_SCALE / cs;
-    const blockRight = worldRight * BIOME_SCALE / cs;
-    const blockTop = worldTop * BIOME_SCALE / cs;
-    const blockBottom = worldBottom * BIOME_SCALE / cs;
+    const blockLeft = worldLeft * BIOME_SCALE / structDimScale;
+    const blockRight = worldRight * BIOME_SCALE / structDimScale;
+    const blockTop = worldTop * BIOME_SCALE / structDimScale;
+    const blockBottom = worldBottom * BIOME_SCALE / structDimScale;
     const minRegX = Math.floor(blockLeft / regionBlockSize) - 1;
     const maxRegX = Math.ceil(blockRight / regionBlockSize) + 1;
     const minRegZ = Math.floor(blockTop / regionBlockSize) - 1;
     const maxRegZ = Math.ceil(blockBottom / regionBlockSize) + 1;
 
+    const gen = getGen(config.dim);
+
     for (let regZ = minRegZ; regZ <= maxRegZ; regZ++) {
       for (let regX = minRegX; regX <= maxRegX; regX++) {
         const pos = getStructurePos(structType, mcVersion, seed, regX, regZ);
         if (pos) {
-          const biome = getBiomeAt(generator, 4, pos.x >> 2, 320, pos.z >> 2);
+          const biome = getBiomeAt(gen, 4, pos.x >> 2, 320, pos.z >> 2);
           if (!isViableFeatureBiome(mcVersion, structType, biome)) continue;
           markers.push({
-            x: pos.x * cs / BIOME_SCALE,
-            z: pos.z * cs / BIOME_SCALE,
+            x: pos.x * structDimScale / BIOME_SCALE,
+            z: pos.z * structDimScale / BIOME_SCALE,
             type: structType,
           });
         }
@@ -464,7 +476,7 @@ export default function CubiomesMap({
     const handle = setTimeout(() => {
       if (genId !== structureGenId.current) return;
       const markers = findStructuresInView(
-        generator, enabledStructures, seed, mcVersion, dimension,
+        seed, enabledStructures, mcVersion,
         worldLeft, worldTop, worldRight, worldBottom,
       );
       if (genId === structureGenId.current) {
