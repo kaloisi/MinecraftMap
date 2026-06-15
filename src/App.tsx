@@ -823,8 +823,12 @@ export default function App() {
             </Table>
             <Divider sx={{ my: 1 }} />
             {(() => {
-              const isMarked = customMarkers.some(m => m.x === locationDialogData.blockX && m.z === locationDialogData.blockZ);
-              const existingMarker = customMarkers.find(m => m.x === locationDialogData.blockX && m.z === locationDialogData.blockZ);
+              const SNAP = 10;
+              const existingMarker = customMarkers.find(m =>
+                Math.abs(m.x - locationDialogData.blockX) < SNAP &&
+                Math.abs(m.z - locationDialogData.blockZ) < SNAP
+              );
+              const isMarked = existingMarker != null;
               return (
                 <Box sx={{ mt: 1 }}>
                   <FormControlLabel
@@ -836,8 +840,8 @@ export default function App() {
                           if (e.target.checked) {
                             const name = markerName.trim() || `Marker ${locationDialogData.blockX}, ${locationDialogData.blockZ}`;
                             file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name });
-                          } else {
-                            file.deleteMarker(locationDialogData.blockX, locationDialogData.blockZ);
+                          } else if (existingMarker) {
+                            file.deleteMarker(existingMarker.x, existingMarker.z);
                             setMarkerName('');
                           }
                           setCustomMarkers(file.getMarkers());
@@ -853,10 +857,10 @@ export default function App() {
                     fullWidth
                     value={isMarked ? (existingMarker?.name ?? '') : markerName}
                     onChange={(e) => {
-                      if (isMarked) {
+                      if (isMarked && existingMarker) {
                         const file = mapDataFileRef.current;
-                        file.deleteMarker(locationDialogData.blockX, locationDialogData.blockZ);
-                        file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name: e.target.value });
+                        file.deleteMarker(existingMarker.x, existingMarker.z);
+                        file.addMarker({ x: existingMarker.x, z: existingMarker.z, name: e.target.value });
                         setCustomMarkers(file.getMarkers());
                       } else {
                         setMarkerName(e.target.value);
