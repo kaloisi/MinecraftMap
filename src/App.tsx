@@ -756,7 +756,7 @@ export default function App() {
       </Dialog>
 
       <Drawer
-        anchor="right"
+        anchor="left"
         open={locationDialogOpen}
         onClose={() => { setLocationDialogOpen(false); setHoveredStructureIndex(null); }}
         variant="persistent"
