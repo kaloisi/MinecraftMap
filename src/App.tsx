@@ -39,7 +39,8 @@ import { Dimension, MCVersion, StructureType, isSlimeChunk, getStructureConfig, 
 import { isViableFeatureBiome } from './structureViability';
 import { lookupBiomeName, getGenerator } from './components/CubiomesMap';
 import { MapDataFiles } from './MapDataFiles';
-import type { MapDataFile } from './MapDataFile';
+import type { MapDataFile, CustomMarker } from './MapDataFile';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 const darkTheme = createTheme({
   palette: { mode: 'dark' },
@@ -181,6 +182,8 @@ export default function App() {
   } | null>(null);
   const [hoveredStructureIndex, setHoveredStructureIndex] = useState<number | null>(null);
   const [mapName, setMapName] = useState(initial.mapName);
+  const [customMarkers, setCustomMarkers] = useState<CustomMarker[]>(() => mapDataFiles.getMapDataFile(seed).getMarkers());
+  const [markerName, setMarkerName] = useState('');
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [propsName, setPropsName] = useState('');
   const [propsVersion, setPropsVersion] = useState<MCVersion>(MCVersion.MC_1_21);
@@ -277,6 +280,7 @@ export default function App() {
     setMcVersion(state.mcVersion);
     setMapName(state.mapName);
     setEnabledStructures(state.enabledStructures);
+    setCustomMarkers(file.getMarkers());
     setCenterX(formatCoord(state.centerX));
     setCenterZ(formatCoord(state.centerZ));
     if (state.centerX !== 0 || state.centerZ !== 0) {
@@ -656,7 +660,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} customMarkers={customMarkers} />
           <DimensionToggle dimension={dimension} onDimensionChange={setDimension} />
           <Typography
             variant="body2"
@@ -817,6 +821,48 @@ export default function App() {
                 </TableRow>
               </TableBody>
             </Table>
+            <Divider sx={{ my: 1 }} />
+            {(() => {
+              const isMarked = customMarkers.some(m => m.x === locationDialogData.blockX && m.z === locationDialogData.blockZ);
+              const existingMarker = customMarkers.find(m => m.x === locationDialogData.blockX && m.z === locationDialogData.blockZ);
+              return (
+                <Box sx={{ mt: 1 }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={isMarked}
+                        onChange={(e) => {
+                          const file = mapDataFileRef.current;
+                          if (e.target.checked) {
+                            const name = markerName.trim() || `Marker ${locationDialogData.blockX}, ${locationDialogData.blockZ}`;
+                            file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name });
+                          } else {
+                            file.deleteMarker(locationDialogData.blockX, locationDialogData.blockZ);
+                            setMarkerName('');
+                          }
+                          setCustomMarkers(file.getMarkers());
+                        }}
+                        size="small"
+                      />
+                    }
+                    label="Save as custom marker"
+                  />
+                  <TextField
+                    label="Custom Name"
+                    size="small"
+                    fullWidth
+                    value={isMarked ? (existingMarker?.name ?? '') : markerName}
+                    onChange={(e) => {
+                      if (!isMarked) {
+                        setMarkerName(e.target.value);
+                      }
+                    }}
+                    slotProps={{ input: { readOnly: isMarked } }}
+                    sx={{ mt: 0.5 }}
+                  />
+                </Box>
+              );
+            })()}
             {locationDialogData.nearbyStructures.length > 0 && (
               <>
                 <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Nearby Structures (within 500 blocks)</Typography>

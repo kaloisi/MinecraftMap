@@ -15,6 +15,7 @@ import {
 } from '../CubiomesTS';
 import { isViableFeatureBiome } from '../structureViability';
 import type { Range } from '../CubiomesTS';
+import type { CustomMarker } from '../MapDataFile';
 
 export interface CubiomesMapProps {
   seed: bigint;
@@ -30,6 +31,8 @@ export interface CubiomesMapProps {
   cursorWorld: { x: number; z: number } | null;
   /** Called with the biome name under the cursor. */
   onBiomeHover?: (name: string | null) => void;
+  /** User-placed custom markers. */
+  customMarkers?: CustomMarker[];
 }
 
 function dimCoordScale(dim: Dimension): number {
@@ -338,6 +341,51 @@ const StructureOverlay = memo(function StructureOverlay({
   );
 });
 
+const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
+  markers,
+  scale,
+}: {
+  markers: CustomMarker[];
+  scale: number;
+}) {
+  const fontSize = Math.max(2, 8 / scale);
+  const showLabels = scale >= 2;
+  return (
+    <g>
+      {markers.map((m, i) => {
+        const wx = m.x / BIOME_SCALE;
+        const wz = m.z / BIOME_SCALE;
+        return (
+          <g key={i}>
+            <circle
+              cx={wx}
+              cy={wz}
+              r={MARKER_RADIUS}
+              fill="#FF1744"
+              stroke="#FFF"
+              strokeWidth={0.3}
+            />
+            {showLabels && (
+              <text
+                x={wx}
+                y={wz - MARKER_RADIUS - 0.5}
+                textAnchor="middle"
+                fill="#FF1744"
+                stroke="#000"
+                strokeWidth={0.15}
+                paintOrder="stroke"
+                fontSize={fontSize}
+              >
+                {m.name}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
 export default function CubiomesMap({
   seed,
   dimension,
@@ -348,6 +396,7 @@ export default function CubiomesMap({
   viewportHeight,
   cursorWorld,
   onBiomeHover,
+  customMarkers,
 }: CubiomesMapProps) {
   const generator = useMemo(() => getGenerator(seed, dimension, mcVersion), [seed, dimension, mcVersion]);
   const coordScale = dimCoordScale(dimension);
@@ -506,6 +555,9 @@ export default function CubiomesMap({
       ))}
       {structureMarkers.length > 0 && (
         <StructureOverlay markers={structureMarkers} scale={transform.scale} />
+      )}
+      {customMarkers && customMarkers.length > 0 && (
+        <CustomMarkerOverlay markers={customMarkers} scale={transform.scale} />
       )}
     </>
   );

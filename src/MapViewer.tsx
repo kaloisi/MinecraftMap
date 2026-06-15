@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardR
 import Box from '@mui/material/Box';
 import CubiomesMap from './components/CubiomesMap';
 import type { Dimension, MCVersion, StructureType } from './CubiomesTS';
+import type { CustomMarker } from './MapDataFile';
 
 export interface Transform {
   x: number;
@@ -29,6 +30,7 @@ export interface MapViewerProps {
   onCursorChange?: (pos: { x: number; z: number } | null) => void;
   onLocationClick?: (worldPos: { x: number; z: number }) => void;
   highlightLine?: HighlightLine | null;
+  customMarkers?: CustomMarker[];
 }
 
 export interface MapViewerHandle {
@@ -40,7 +42,7 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick, highlightLine }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick, highlightLine, customMarkers }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom ?? INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -223,6 +225,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
             viewportHeight={viewport.height}
             cursorWorld={cursorWorld}
             onBiomeHover={onBiomeHover}
+            customMarkers={customMarkers}
           />
           {highlightLine && (
             <line
