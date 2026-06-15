@@ -415,6 +415,24 @@ export default function App() {
     });
   }, []);
 
+  const handleToggleAllStructures = useCallback((groupIdx: number) => {
+    const group = STRUCTURE_GROUPS[groupIdx];
+    if (!group) return;
+    setEnabledStructures((prev) => {
+      const next = new Set(prev);
+      const anyChecked = group.entries.some(e => next.has(e.type));
+      for (const entry of group.entries) {
+        if (anyChecked) {
+          next.delete(entry.type);
+        } else {
+          next.add(entry.type);
+        }
+      }
+      mapDataFileRef.current.setJSON('enabledStructures', Array.from(next));
+      return next;
+    });
+  }, []);
+
   const handleCenterChange = useCallback((x: number, z: number) => {
     if (isUserEditingCoords.current) return;
     setCenterX(formatCoord(x));
@@ -601,7 +619,7 @@ export default function App() {
               <Paper sx={{ pointerEvents: 'auto' }}>
                 <MenuList dense>
                   {activeGroupIdx >= 0 && STRUCTURE_GROUPS[activeGroupIdx].entries.map(({ type, label }) => (
-                    <MenuItem key={type} onClick={() => handleToggleStructure(type)}>
+                    <MenuItem key={type} onClick={() => handleToggleStructure(type)} onDoubleClick={() => handleToggleAllStructures(activeGroupIdx)}>
                       <Checkbox
                         checked={enabledStructures.has(type)}
                         size="small"
