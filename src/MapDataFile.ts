@@ -1,6 +1,12 @@
 import type { Seed } from './MapDataStorage';
 import { MapDataStorage } from './MapDataStorage';
 
+export interface CustomMarker {
+  x: number;
+  z: number;
+  name: string;
+}
+
 /**
  * Per-seed data store for a single Minecraft world.
  *
@@ -67,5 +73,20 @@ export class MapDataFile {
 
   remove(key: string): void {
     this.storage.remove(this.keyPrefix + key);
+  }
+
+  getMarkers(): CustomMarker[] {
+    return this.getJSON<CustomMarker[]>('customMarkers') ?? [];
+  }
+
+  addMarker(marker: CustomMarker): void {
+    const markers = this.getMarkers();
+    markers.push(marker);
+    this.setJSON('customMarkers', markers);
+  }
+
+  deleteMarker(x: number, z: number): void {
+    const markers = this.getMarkers().filter(m => m.x !== x || m.z !== z);
+    this.setJSON('customMarkers', markers);
   }
 }
