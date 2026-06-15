@@ -295,7 +295,7 @@ function findStructuresInView(
   return markers;
 }
 
-const MARKER_RADIUS = 1.5;
+const MARKER_RADIUS = 2.25;
 
 const StructureOverlay = memo(function StructureOverlay({
   markers,
@@ -304,7 +304,7 @@ const StructureOverlay = memo(function StructureOverlay({
   markers: StructureMarker[];
   scale: number;
 }) {
-  const radius = Math.max(MARKER_RADIUS, 6 / scale);
+  const radius = Math.max(MARKER_RADIUS, 9 / scale);
   const fontSize = Math.max(2, 8 / scale);
   const showLabels = scale >= 2;
   return (
@@ -349,7 +349,7 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
   markers: CustomMarker[];
   scale: number;
 }) {
-  const radius = Math.max(MARKER_RADIUS, 6 / scale);
+  const radius = Math.max(MARKER_RADIUS, 9 / scale);
   const fontSize = Math.max(2, 8 / scale);
   const showLabels = scale >= 2;
   return (
