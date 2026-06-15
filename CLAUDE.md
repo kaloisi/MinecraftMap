@@ -16,6 +16,20 @@ See `docs/MASTER_PROMPT.md` for the full design document covering:
 - Structure overlay tiers (1–3)
 - Recommended implementation order
 
+### Unified Map Model
+The Overworld and Nether share a single logical map in Overworld coordinate space. A Google Maps-style dimension toggle (bottom-right of the map) switches the biome "skin" between Overworld and Nether. The Nether biomes render at 8:1 scale so they fill the same area. Structures from both dimensions are always visible regardless of which skin is active. The End is not part of the unified map.
+
+### Key Components
+- **`App.tsx`** — State management, toolbar, footer, location drawer
+- **`MapViewer.tsx`** — SVG viewport with pan/zoom, click-to-inspect
+- **`components/CubiomesMap.tsx`** — Biome tile rendering and structure overlay
+- **`components/DimensionToggle.tsx`** — Overworld/Nether skin toggle overlay
+
+### Coordinate System
+- All user-facing coordinates (toolbar inputs, footer, drawer) are in **Overworld block coordinates**
+- The drawer shows both Overworld and Nether block/chunk coordinates
+- Nether structures appear at their Overworld-equivalent positions (Nether pos × 8)
+
 ## Build & Run
 ```bash
 npm install
@@ -35,4 +49,6 @@ If you need logic that builds on top of CubiomesTS (e.g. biome viability checks,
 - **MC 1.18+ only** — eliminates layers.c/h (~1,500 lines of complex layer stack)
 - **BigInt confined to seed setup** — render loop and structure overlays use plain `number`
 - **SVG tiles** — `genBiomes` → `Int32Array` → `<rect>` grid, generated lazily per viewport
+- **Unified Overworld/Nether map** — single coordinate space with skin toggle, structures from both dimensions always visible
+- **Single-click location inspector** — click opens a left-side drawer with Overworld + Nether coordinates, biome info, and nearby structures from both dimensions
 - **Web Worker** — only for Tier 3 (spawn + strongholds); biome tiles and Tier 1/2 structures run on main thread
