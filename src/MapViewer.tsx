@@ -47,6 +47,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   const [cursorWorld, setCursorWorld] = useState<{ x: number; z: number } | null>(null);
   const initialized = useRef(false);
   const isPanning = useRef(false);
+  const didPan = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const transformRef = useRef(transform);
   transformRef.current = transform;
@@ -120,6 +121,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     isPanning.current = true;
+    didPan.current = false;
     panStart.current = { x: e.clientX, y: e.clientY };
     (e.target as Element).setPointerCapture(e.pointerId);
   }, []);
@@ -134,6 +136,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
     if (!isPanning.current) return;
     const dx = e.clientX - panStart.current.x;
     const dy = e.clientY - panStart.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didPan.current = true;
     panStart.current = { x: e.clientX, y: e.clientY };
     setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
   }, [screenToWorld]);
@@ -142,7 +145,8 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
     isPanning.current = false;
   }, []);
 
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (didPan.current) return;
     const world = screenToWorld(e.clientX, e.clientY);
     if (world) onLocationClick?.(world);
   }, [screenToWorld, onLocationClick]);
@@ -200,7 +204,7 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
         width="100%"
         height="100%"
         onWheel={handleWheel}
-        onDoubleClick={handleDoubleClick}
+        onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

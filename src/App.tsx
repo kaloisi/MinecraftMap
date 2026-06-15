@@ -30,6 +30,7 @@ import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import MapViewer from './MapViewer';
 import type { MapViewerHandle, HighlightLine } from './MapViewer';
+import DimensionToggle from './components/DimensionToggle';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -171,9 +172,11 @@ export default function App() {
     blockX: number; blockZ: number;
     chunkX: number; chunkZ: number;
     regionX: number; regionZ: number;
+    netherBlockX: number; netherBlockZ: number;
+    netherChunkX: number; netherChunkZ: number;
     biome: string;
     slimeChunk: boolean;
-    nearbyStructures: { label: string; x: number; z: number; dist: number }[];
+    nearbyStructures: { label: string; x: number; z: number; dist: number; dimScale: number }[];
     dimensionLabel: string;
   } | null>(null);
   const [hoveredStructureIndex, setHoveredStructureIndex] = useState<number | null>(null);
@@ -310,47 +313,58 @@ export default function App() {
   const BIOME_SCALE = 4;
 
   const handleLocationClick = useCallback((worldPos: { x: number; z: number }) => {
+    if (locationDialogOpen) {
+      setLocationDialogOpen(false);
+      setHoveredStructureIndex(null);
+      return;
+    }
     setHoveredStructureIndex(null);
-    const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
-    const blockX = Math.floor(worldPos.x * BIOME_SCALE / cs);
-    const blockZ = Math.floor(worldPos.z * BIOME_SCALE / cs);
-    const chunkX = Math.floor(blockX / 16);
-    const chunkZ = Math.floor(blockZ / 16);
+    const owBlockX = Math.floor(worldPos.x * BIOME_SCALE);
+    const owBlockZ = Math.floor(worldPos.z * BIOME_SCALE);
+    const chunkX = Math.floor(owBlockX / 16);
+    const chunkZ = Math.floor(owBlockZ / 16);
     const regionX = Math.floor(chunkX / 32);
     const regionZ = Math.floor(chunkZ / 32);
 
+    const netherBlockX = Math.floor(owBlockX / NETHER_RATIO);
+    const netherBlockZ = Math.floor(owBlockZ / NETHER_RATIO);
+    const netherChunkX = Math.floor(netherBlockX / 16);
+    const netherChunkZ = Math.floor(netherBlockZ / 16);
+
     const biome = lookupBiomeName(worldPos.x, worldPos.z) ?? 'Unknown';
 
-    const slime = dimension === Dimension.DIM_OVERWORLD
-      ? isSlimeChunk(seed, chunkX, chunkZ)
-      : false;
+    const slime = isSlimeChunk(seed, chunkX, chunkZ);
 
-    const dimLabel = dimension === Dimension.DIM_NETHER ? 'The Nether'
-      : dimension === Dimension.DIM_END ? 'The End' : 'Overworld';
+    const dimLabel = dimension === Dimension.DIM_NETHER ? 'Nether' : 'Overworld';
 
-    const gen = getGenerator(seed, dimension, mcVersion);
-    const nearby: { label: string; x: number; z: number; dist: number }[] = [];
+    const nearby: { label: string; x: number; z: number; dist: number; dimScale: number }[] = [];
     const SEARCH_RADIUS = 10;
     for (const group of STRUCTURE_GROUPS) {
       for (const entry of group.entries) {
         const config = getStructureConfig(entry.type, mcVersion);
-        if (!config || config.dim !== dimension) continue;
+        if (!config || config.dim === Dimension.DIM_END) continue;
+        const isNether = config.dim === Dimension.DIM_NETHER;
+        const searchBlockX = isNether ? netherBlockX : owBlockX;
+        const searchBlockZ = isNether ? netherBlockZ : owBlockZ;
+        const gen = getGenerator(seed, config.dim, mcVersion);
         const regionBlockSize = config.regionSize * 16;
-        const minReg = Math.floor((blockX - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
-        const maxReg = Math.ceil((blockX + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
-        const minRegZ = Math.floor((blockZ - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
-        const maxRegZ = Math.ceil((blockZ + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const minReg = Math.floor((searchBlockX - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const maxReg = Math.ceil((searchBlockX + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const minRegZ = Math.floor((searchBlockZ - SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
+        const maxRegZ = Math.ceil((searchBlockZ + SEARCH_RADIUS * regionBlockSize) / regionBlockSize);
         for (let rz = minRegZ; rz <= maxRegZ; rz++) {
           for (let rx = minReg; rx <= maxReg; rx++) {
             const pos = getStructurePos(entry.type, mcVersion, seed, rx, rz);
             if (pos) {
-              const dx = pos.x - blockX;
-              const dz = pos.z - blockZ;
+              const dx = pos.x - searchBlockX;
+              const dz = pos.z - searchBlockZ;
               const dist = Math.sqrt(dx * dx + dz * dz);
               if (dist < 500) {
                 const biome = getBiomeAt(gen, 4, pos.x >> 2, 320, pos.z >> 2);
                 if (!isViableFeatureBiome(mcVersion, entry.type, biome)) continue;
-                nearby.push({ label: entry.label, x: pos.x, z: pos.z, dist: Math.round(dist) });
+                const dimSuffix = isNether ? ' (Nether)' : '';
+                const dimScale = isNether ? NETHER_RATIO : 1;
+                nearby.push({ label: entry.label + dimSuffix, x: pos.x, z: pos.z, dist: Math.round(dist), dimScale });
               }
             }
           }
@@ -360,12 +374,13 @@ export default function App() {
     nearby.sort((a, b) => a.dist - b.dist);
 
     setLocationDialogData({
-      blockX, blockZ, chunkX, chunkZ, regionX, regionZ,
+      blockX: owBlockX, blockZ: owBlockZ, chunkX, chunkZ, regionX, regionZ,
+      netherBlockX, netherBlockZ, netherChunkX, netherChunkZ,
       biome, slimeChunk: slime, nearbyStructures: nearby.slice(0, 10),
       dimensionLabel: dimLabel,
     });
     setLocationDialogOpen(true);
-  }, [seed, dimension, mcVersion]);
+  }, [seed, dimension, mcVersion, locationDialogOpen]);
 
   const handleOpenProperties = useCallback(() => {
     handleFileMenuClose();
@@ -461,14 +476,13 @@ export default function App() {
     if (hoveredStructureIndex == null || !locationDialogData) return null;
     const s = locationDialogData.nearbyStructures[hoveredStructureIndex];
     if (!s) return null;
-    const cs = dimension === Dimension.DIM_NETHER ? NETHER_RATIO : 1;
     return {
-      fromX: locationDialogData.blockX * cs / BIOME_SCALE,
-      fromZ: locationDialogData.blockZ * cs / BIOME_SCALE,
-      toX: s.x * cs / BIOME_SCALE,
-      toZ: s.z * cs / BIOME_SCALE,
+      fromX: locationDialogData.blockX / BIOME_SCALE,
+      fromZ: locationDialogData.blockZ / BIOME_SCALE,
+      toX: s.x * s.dimScale / BIOME_SCALE,
+      toZ: s.z * s.dimScale / BIOME_SCALE,
     };
-  }, [hoveredStructureIndex, locationDialogData, dimension]);
+  }, [hoveredStructureIndex, locationDialogData]);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -595,23 +609,6 @@ export default function App() {
                 </MenuList>
               </Paper>
             </Popover>
-            <Select
-              value={dimension}
-              onChange={(e) => setDimension(e.target.value as Dimension)}
-              size="small"
-              variant="outlined"
-              sx={{
-                color: 'inherit',
-                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                '.MuiSvgIcon-root': { color: 'inherit' },
-                minWidth: 140,
-              }}
-            >
-              <MenuItem value={Dimension.DIM_OVERWORLD}>Overworld</MenuItem>
-              <MenuItem value={Dimension.DIM_NETHER}>The Nether</MenuItem>
-              <MenuItem value={Dimension.DIM_END}>The End</MenuItem>
-            </Select>
             <Box sx={{ flexGrow: 1 }} />
             <TextField
               label="X"
@@ -660,6 +657,7 @@ export default function App() {
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} />
+          <DimensionToggle dimension={dimension} onDimensionChange={setDimension} />
           <Typography
             variant="body2"
             sx={{
@@ -688,7 +686,12 @@ export default function App() {
             >
               {seed.toString()}
             </Box>
-            {cursorPos && <> &nbsp;|&nbsp; X: {Math.floor(cursorPos.x * 4 / (dimension === Dimension.DIM_NETHER ? 8 : 1))}, Z: {Math.floor(cursorPos.z * 4 / (dimension === Dimension.DIM_NETHER ? 8 : 1))}</>}
+            {cursorPos && (
+              <>
+                &nbsp;|&nbsp; OW: X: {Math.floor(cursorPos.x * BIOME_SCALE)}, Z: {Math.floor(cursorPos.z * BIOME_SCALE)}
+                &nbsp;|&nbsp; Nether: X: {Math.floor(cursorPos.x * BIOME_SCALE / NETHER_RATIO)}, Z: {Math.floor(cursorPos.z * BIOME_SCALE / NETHER_RATIO)}
+              </>
+            )}
             {hoveredBiome && <> &nbsp;|&nbsp; Biome: {hoveredBiome}</>}
           </Typography>
         </Box>
@@ -755,11 +758,11 @@ export default function App() {
       </Dialog>
 
       <Drawer
-        anchor="right"
+        anchor="left"
         open={locationDialogOpen}
         onClose={() => { setLocationDialogOpen(false); setHoveredStructureIndex(null); }}
         variant="persistent"
-        sx={{ '& .MuiDrawer-paper': { width: 340, boxSizing: 'border-box' } }}
+        sx={{ '& .MuiDrawer-paper': { width: 390, boxSizing: 'border-box' } }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
           <Typography variant="h6">Location Details</Typography>
@@ -768,14 +771,14 @@ export default function App() {
         <Divider />
         {locationDialogData && (
           <Box sx={{ px: 2, py: 1, overflow: 'auto', flexGrow: 1 }}>
+            <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5, color: 'text.secondary' }}>
+              Viewing: {locationDialogData.dimensionLabel}
+            </Typography>
+            <Typography variant="subtitle2" sx={{ mt: 1.5, mb: 0.5 }}>Overworld</Typography>
             <Table size="small">
               <TableBody>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Dimension</TableCell>
-                  <TableCell>{locationDialogData.dimensionLabel}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Block</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Block</TableCell>
                   <TableCell>X: {locationDialogData.blockX}, Z: {locationDialogData.blockZ}</TableCell>
                 </TableRow>
                 <TableRow>
@@ -787,15 +790,31 @@ export default function App() {
                   <TableCell>r.{locationDialogData.regionX}.{locationDialogData.regionZ}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Biome</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Slime Chunk</TableCell>
+                  <TableCell>{locationDialogData.slimeChunk ? 'Yes' : 'No'}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            <Typography variant="subtitle2" sx={{ mt: 1.5, mb: 0.5 }}>Nether</Typography>
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Block</TableCell>
+                  <TableCell>X: {locationDialogData.netherBlockX}, Z: {locationDialogData.netherBlockZ}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Chunk</TableCell>
+                  <TableCell>X: {locationDialogData.netherChunkX}, Z: {locationDialogData.netherChunkZ}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            <Divider sx={{ my: 1 }} />
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', width: 100 }}>Biome</TableCell>
                   <TableCell>{locationDialogData.biome}</TableCell>
                 </TableRow>
-                {dimension === Dimension.DIM_OVERWORLD && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Slime Chunk</TableCell>
-                    <TableCell>{locationDialogData.slimeChunk ? 'Yes' : 'No'}</TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
             {locationDialogData.nearbyStructures.length > 0 && (
