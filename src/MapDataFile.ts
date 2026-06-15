@@ -5,6 +5,7 @@ export interface CustomMarker {
   x: number;
   z: number;
   name: string;
+  includesPortal?: boolean;
 }
 
 /**

@@ -364,8 +364,8 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
               cy={wz}
               r={radius}
               fill="#FF1744"
-              stroke="#FFF"
-              strokeWidth={Math.max(0.3, 1 / scale)}
+              stroke="#9C27B0"
+              strokeWidth={Math.max(0.6, 1.5 / scale)}
             />
             {showLabels && (
               <text

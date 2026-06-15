@@ -847,6 +847,13 @@ export default function App() {
                 Math.abs(m.z - locationDialogData.blockZ) < SNAP
               );
               const isMarked = existingMarker != null;
+              const updateMarker = (updates: Partial<CustomMarker>) => {
+                if (!existingMarker) return;
+                const file = mapDataFileRef.current;
+                file.deleteMarker(existingMarker.x, existingMarker.z);
+                file.addMarker({ ...existingMarker, ...updates });
+                setCustomMarkers(file.getMarkers());
+              };
               return (
                 <Box sx={{ mt: 1 }}>
                   <FormControlLabel
@@ -857,7 +864,7 @@ export default function App() {
                           const file = mapDataFileRef.current;
                           if (e.target.checked) {
                             const name = markerName.trim() || `Marker ${locationDialogData.blockX}, ${locationDialogData.blockZ}`;
-                            file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name });
+                            file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name, includesPortal: false });
                           } else if (existingMarker) {
                             file.deleteMarker(existingMarker.x, existingMarker.z);
                             setMarkerName('');
@@ -869,24 +876,29 @@ export default function App() {
                     }
                     label="Save as custom marker"
                   />
-                  <TextField
-                    label="Custom Name"
-                    size="small"
-                    fullWidth
-                    value={isMarked ? (existingMarker?.name ?? '') : markerName}
-                    onChange={(e) => {
-                      if (isMarked && existingMarker) {
-                        const file = mapDataFileRef.current;
-                        file.deleteMarker(existingMarker.x, existingMarker.z);
-                        file.addMarker({ x: existingMarker.x, z: existingMarker.z, name: e.target.value });
-                        setCustomMarkers(file.getMarkers());
-                      } else {
-                        setMarkerName(e.target.value);
-                      }
-                    }}
-                    slotProps={{ input: { readOnly: !isMarked } }}
-                    sx={{ mt: 0.5 }}
-                  />
+                  {isMarked && (
+                    <Box sx={{ ml: 3 }}>
+                      <TextField
+                        label="Custom Name"
+                        size="small"
+                        fullWidth
+                        value={existingMarker?.name ?? ''}
+                        onChange={(e) => updateMarker({ name: e.target.value })}
+                        sx={{ mt: 0.5 }}
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={existingMarker?.includesPortal ?? false}
+                            onChange={(e) => updateMarker({ includesPortal: e.target.checked })}
+                            size="small"
+                          />
+                        }
+                        label="Includes Portal"
+                        sx={{ mt: 0.5 }}
+                      />
+                    </Box>
+                  )}
                 </Box>
               );
             })()}
