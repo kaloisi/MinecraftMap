@@ -363,7 +363,7 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
               cx={wx}
               cy={wz}
               r={radius}
-              fill={m.includesPortal ? '#9C27B0' : '#FFF'}
+              fill={m.includesPortal ? '#BF40BF' : '#FF1744'}
               stroke="#FFF"
               strokeWidth={Math.max(0.3, 1 / scale)}
             />
