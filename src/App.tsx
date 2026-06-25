@@ -415,6 +415,24 @@ export default function App() {
     });
   }, []);
 
+  const handleToggleAllStructures = useCallback((groupIdx: number) => {
+    const group = STRUCTURE_GROUPS[groupIdx];
+    if (!group) return;
+    setEnabledStructures((prev) => {
+      const next = new Set(prev);
+      const anyChecked = group.entries.some(e => next.has(e.type));
+      for (const entry of group.entries) {
+        if (anyChecked) {
+          next.delete(entry.type);
+        } else {
+          next.add(entry.type);
+        }
+      }
+      mapDataFileRef.current.setJSON('enabledStructures', Array.from(next));
+      return next;
+    });
+  }, []);
+
   const handleCenterChange = useCallback((x: number, z: number) => {
     if (isUserEditingCoords.current) return;
     setCenterX(formatCoord(x));
@@ -582,6 +600,15 @@ export default function App() {
                   <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
                 </MenuItem>
               ))}
+              <Divider />
+              <MenuItem
+                onMouseEnter={(e) => handleSubMenuOpen(e, -2)}
+                onClick={(e) => handleSubMenuOpen(e, -2)}
+                selected={activeGroupIdx === -2}
+              >
+                <ListItemText>Custom Markers</ListItemText>
+                <ArrowRightIcon fontSize="small" sx={{ ml: 2, opacity: 0.5 }} />
+              </MenuItem>
             </Menu>
             <Popover
               open={subMenuAnchor !== null}
@@ -601,13 +628,28 @@ export default function App() {
               <Paper sx={{ pointerEvents: 'auto' }}>
                 <MenuList dense>
                   {activeGroupIdx >= 0 && STRUCTURE_GROUPS[activeGroupIdx].entries.map(({ type, label }) => (
-                    <MenuItem key={type} onClick={() => handleToggleStructure(type)}>
+                    <MenuItem key={type} onClick={() => handleToggleStructure(type)} onDoubleClick={() => handleToggleAllStructures(activeGroupIdx)}>
                       <Checkbox
                         checked={enabledStructures.has(type)}
                         size="small"
                         sx={{ p: 0, mr: 1 }}
                       />
                       <ListItemText>{label}</ListItemText>
+                    </MenuItem>
+                  ))}
+                  {activeGroupIdx === -2 && customMarkers.length === 0 && (
+                    <MenuItem disabled>
+                      <ListItemText>No custom markers</ListItemText>
+                    </MenuItem>
+                  )}
+                  {activeGroupIdx === -2 && customMarkers.map((m, i) => (
+                    <MenuItem key={i} onClick={() => {
+                      mapRef.current?.goToPosition(m.x, m.z);
+                      setCenterX(formatCoord(m.x));
+                      setCenterZ(formatCoord(m.z));
+                      handleStructMenuClose();
+                    }}>
+                      <ListItemText>{m.name}</ListItemText>
                     </MenuItem>
                   ))}
                 </MenuList>
@@ -829,6 +871,13 @@ export default function App() {
                 Math.abs(m.z - locationDialogData.blockZ) < SNAP
               );
               const isMarked = existingMarker != null;
+              const updateMarker = (updates: Partial<CustomMarker>) => {
+                if (!existingMarker) return;
+                const file = mapDataFileRef.current;
+                file.deleteMarker(existingMarker.x, existingMarker.z);
+                file.addMarker({ ...existingMarker, ...updates });
+                setCustomMarkers(file.getMarkers());
+              };
               return (
                 <Box sx={{ mt: 1 }}>
                   <FormControlLabel
@@ -839,7 +888,7 @@ export default function App() {
                           const file = mapDataFileRef.current;
                           if (e.target.checked) {
                             const name = markerName.trim() || `Marker ${locationDialogData.blockX}, ${locationDialogData.blockZ}`;
-                            file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name });
+                            file.addMarker({ x: locationDialogData.blockX, z: locationDialogData.blockZ, name, includesPortal: false });
                           } else if (existingMarker) {
                             file.deleteMarker(existingMarker.x, existingMarker.z);
                             setMarkerName('');
@@ -851,24 +900,29 @@ export default function App() {
                     }
                     label="Save as custom marker"
                   />
-                  <TextField
-                    label="Custom Name"
-                    size="small"
-                    fullWidth
-                    value={isMarked ? (existingMarker?.name ?? '') : markerName}
-                    onChange={(e) => {
-                      if (isMarked && existingMarker) {
-                        const file = mapDataFileRef.current;
-                        file.deleteMarker(existingMarker.x, existingMarker.z);
-                        file.addMarker({ x: existingMarker.x, z: existingMarker.z, name: e.target.value });
-                        setCustomMarkers(file.getMarkers());
-                      } else {
-                        setMarkerName(e.target.value);
-                      }
-                    }}
-                    slotProps={{ input: { readOnly: !isMarked } }}
-                    sx={{ mt: 0.5 }}
-                  />
+                  {isMarked && (
+                    <Box sx={{ ml: 3 }}>
+                      <TextField
+                        label="Custom Name"
+                        size="small"
+                        fullWidth
+                        value={existingMarker?.name ?? ''}
+                        onChange={(e) => updateMarker({ name: e.target.value })}
+                        sx={{ mt: 0.5 }}
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={existingMarker?.includesPortal ?? false}
+                            onChange={(e) => updateMarker({ includesPortal: e.target.checked })}
+                            size="small"
+                          />
+                        }
+                        label="Includes Portal"
+                        sx={{ mt: 0.5 }}
+                      />
+                    </Box>
+                  )}
                 </Box>
               );
             })()}

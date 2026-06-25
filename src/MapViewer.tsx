@@ -167,6 +167,26 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
   }, []);
 
   useEffect(() => {
+    const PAN_STEP = 50;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case 'ArrowLeft': dx = PAN_STEP; break;
+        case 'ArrowRight': dx = -PAN_STEP; break;
+        case 'ArrowUp': dy = PAN_STEP; break;
+        case 'ArrowDown': dy = -PAN_STEP; break;
+        default: return;
+      }
+      e.preventDefault();
+      setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
 
