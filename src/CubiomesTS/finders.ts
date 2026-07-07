@@ -1,5 +1,7 @@
 import { MCVersion, BiomeId } from './biomes';
-import { setSeed, nextInt, nextFloat, type SeedBox } from './rng';
+import { setSeed, nextInt, nextFloat, nextDouble, nextLong, type SeedBox } from './rng';
+import { sampleBiomeNoise, SampleFlags } from './biomenoise';
+import type { Generator } from './generator';
 
 export const enum StructureType {
   Feature = 0,
@@ -371,4 +373,273 @@ function nextLongLocal(box: SeedBox): bigint {
 function nextBits(box: SeedBox, bits: number): number {
   box.seed = (box.seed * 0x5DEECE66Dn + 0xBn) & ((1n << 48n) - 1n);
   return Number(BigInt.asIntN(64, box.seed) >> BigInt(48 - bits));
+}
+
+//==============================================================================
+// Finding Strongholds and Spawn (finders.c)
+//==============================================================================
+
+/** Iteration state for the stronghold ring generator. */
+export interface StrongholdIter {
+  pos: Pos;         // accurate location of the current stronghold
+  nextapprox: Pos;  // approximate location (+/-112 blocks) of the next stronghold
+  index: number;    // stronghold index counter
+  ringnum: number;  // ring number for index
+  ringmax: number;  // max index within ring
+  ringidx: number;  // index within ring
+  angle: number;    // next angle within ring
+  dist: number;     // next distance from origin (in chunks)
+  rnds: SeedBox;    // 48-bit LCG state
+  mc: number;       // minecraft version
+}
+
+// id_matches: is the biome id contained in the valid-biome bitmasks?
+function idMatches(id: number, b: bigint, m: bigint): boolean {
+  if (id < 0) return false;
+  return id < 128
+    ? (b & (1n << BigInt(id))) !== 0n
+    : (m & (1n << BigInt(id - 128))) !== 0n;
+}
+
+// isOverworld: false for biomes that do not generate in the Overworld.
+// Simplified for MC 1.18+ (the only versions this app supports). The mask this
+// feeds is only ever tested against Overworld-generated biome ids, so rejecting
+// the Nether/End ranges is sufficient — biomes that never generate can be left
+// in the mask harmlessly because they never appear in a sample.
+function isOverworld(mc: number, id: number): boolean {
+  void mc;
+  if (id < 0) return false;
+  if (id >= BiomeId.small_end_islands && id <= BiomeId.end_barrens) return false; // 40..43
+  if (id >= BiomeId.soul_sand_valley && id <= BiomeId.basalt_deltas) return false; // 170..173
+  switch (id) {
+    case BiomeId.nether_wastes:
+    case BiomeId.the_end:
+    case BiomeId.the_void:
+      return false;
+  }
+  return true;
+}
+
+function isStrongholdBiome(mc: number, id: number): boolean {
+  if (!isOverworld(mc, id)) return false;
+  if (isOceanic(id)) return false;
+  switch (id) {
+    case BiomeId.plains:
+    case BiomeId.mushroom_fields:
+    case BiomeId.taiga_hills:
+      return true; // mc >= MC_1_7
+    case BiomeId.swamp:
+      return false; // mc <= MC_1_6
+    case BiomeId.river:
+    case BiomeId.frozen_river:
+    case BiomeId.beach:
+    case BiomeId.snowy_beach:
+      return false;
+    case BiomeId.mushroom_field_shore:
+      return true; // mc >= MC_1_13
+    case BiomeId.stony_shore:
+      return false; // valid only mc <= MC_1_17
+    case BiomeId.bamboo_jungle:
+      return true; // simulate MC-199298 (mc >= MC_1_18)
+    case BiomeId.mangrove_swamp:
+    case BiomeId.deep_dark:
+      return false;
+    default:
+      return true;
+  }
+}
+
+// locateBiome (MC 1.18+ branch only): finds the nearest matching biome within
+// `radius` blocks of (x, z), sampling on a 4-block grid. Emulates the
+// order-dependent biome generation of MC-241546 via the shared `dat` accumulator.
+function locateBiome(
+  g: Generator, x: number, y: number, z: number, radius: number,
+  validB: bigint, validM: bigint, rng: SeedBox,
+): Pos {
+  const out: Pos = { x, z };
+  let found = 0;
+
+  x >>= 2;
+  z >>= 2;
+  radius >>= 2;
+  const dat = { val: 0 };
+
+  for (let j = -radius; j <= radius; j++) {
+    for (let i = -radius; i <= radius; i++) {
+      const id = sampleBiomeNoise(g.bn, null, x + i, y, z + j, dat, 0);
+      if (!idMatches(id, validB, validM)) continue;
+      if (found === 0 || nextInt(rng, found + 1) === 0) {
+        out.x = (x + i) * 4;
+        out.z = (z + j) * 4;
+      }
+      found++;
+    }
+  }
+  return out;
+}
+
+/**
+ * Finds the approximate location of the first stronghold (+/-112 blocks), which
+ * can be determined from the lower 48 bits of the world seed without biome
+ * checks. If `sh` is provided it is initialized for iteration via nextStronghold.
+ * MC 1.18+ (the modern 1.9+ ring distance formula is used unconditionally).
+ */
+export function initFirstStronghold(sh: StrongholdIter | null, mc: number, s48: bigint): Pos {
+  const rnds: SeedBox = { seed: 0n };
+  setSeed(rnds, s48);
+
+  const angle = 2.0 * Math.PI * nextDouble(rnds);
+  const dist = (4.0 * 32.0) + (nextDouble(rnds) - 0.5) * 32 * 2.5;
+
+  const p: Pos = {
+    x: (Math.round(Math.cos(angle) * dist) * 16) + 8,
+    z: (Math.round(Math.sin(angle) * dist) * 16) + 8,
+  };
+
+  if (sh) {
+    sh.pos = { x: 0, z: 0 };
+    sh.nextapprox = { x: p.x, z: p.z };
+    sh.index = 0;
+    sh.ringnum = 0;
+    sh.ringmax = 3;
+    sh.ringidx = 0;
+    sh.angle = angle;
+    sh.dist = dist;
+    sh.rnds = rnds;
+    sh.mc = mc;
+  }
+
+  return p;
+}
+
+/**
+ * Performs the biome checks for the stronghold iterator, resolving the accurate
+ * location of the current stronghold and the approximate location of the next.
+ * For MC 1.19.3+ the generator may be null to iterate approximate positions
+ * without biome checks. Returns the number of further strongholds after this one.
+ */
+export function nextStronghold(sh: StrongholdIter, g: Generator | null): number {
+  let validB = 0n;
+  let validM = 0n;
+  for (let i = 0; i < 64; i++) {
+    if (isStrongholdBiome(sh.mc, i)) validB |= (1n << BigInt(i));
+    if (isStrongholdBiome(sh.mc, i + 128)) validM |= (1n << BigInt(i));
+  }
+
+  // The app's MC_1_19 tracks the latest 1.19.x (1.19.3+), which seeds a
+  // separate RNG for the biome locate; MC_1_18 consumes the iterator RNG.
+  if (sh.mc > MCVersion.MC_1_18) {
+    if (g) {
+      const lbr: SeedBox = { seed: 0n };
+      setSeed(lbr, nextLong(sh.rnds));
+      sh.pos = locateBiome(g, sh.nextapprox.x, 0, sh.nextapprox.z, 112, validB, validM, lbr);
+    } else {
+      nextLong(sh.rnds);
+      sh.pos = { x: sh.nextapprox.x, z: sh.nextapprox.z };
+    }
+  } else {
+    if (!g) throw new Error('nextStronghold requires a generator for MC 1.18');
+    sh.pos = locateBiome(g, sh.nextapprox.x, 0, sh.nextapprox.z, 112, validB, validM, sh.rnds);
+  }
+
+  // staircase is located at (4, 4) in chunk
+  sh.pos.x = (sh.pos.x & ~15) + 4;
+  sh.pos.z = (sh.pos.z & ~15) + 4;
+
+  sh.ringidx++;
+  sh.angle += 2 * Math.PI / sh.ringmax;
+
+  if (sh.ringidx === sh.ringmax) {
+    sh.ringnum++;
+    sh.ringidx = 0;
+    sh.ringmax = sh.ringmax + Math.trunc(2 * sh.ringmax / (sh.ringnum + 1));
+    if (sh.ringmax > 128 - sh.index) sh.ringmax = 128 - sh.index;
+    sh.angle += nextDouble(sh.rnds) * Math.PI * 2.0;
+  }
+
+  sh.dist = (4.0 * 32.0) + (6.0 * sh.ringnum * 32.0) +
+    (nextDouble(sh.rnds) - 0.5) * 32 * 2.5;
+
+  sh.nextapprox.x = (Math.round(Math.cos(sh.angle) * sh.dist) * 16) + 8;
+  sh.nextapprox.z = (Math.round(Math.sin(sh.angle) * sh.dist) * 16) + 8;
+  sh.index++;
+
+  return 128 - (sh.index - 1);
+}
+
+// calcFitness: lower is a better spawn candidate. Combines squared climate-band
+// violations with a distance-from-origin penalty (MC <= 1.21.1 double formula,
+// which covers every version this app supports).
+function calcFitness(g: Generator, x: number, z: number): bigint {
+  const np = new BigInt64Array(6);
+  const flags = SampleFlags.SAMPLE_NO_DEPTH | SampleFlags.SAMPLE_NO_BIOME;
+  sampleBiomeNoise(g.bn, np, x >> 2, 0, z >> 2, null, flags);
+
+  const spawnNp: [bigint, bigint][] = [
+    [-10000n, 10000n], [-10000n, 10000n], [-1100n, 10000n], [-10000n, 10000n], [0n, 0n],
+    [-10000n, -1600n], [1600n, 10000n], // [6]: weirdness for the second noise point
+  ];
+
+  let ds = 0n;
+  for (let i = 0; i < 5; i++) {
+    const a = np[i] - spawnNp[i][1];
+    const b = spawnNp[i][0] - np[i];
+    const q = a > 0n ? a : (b > 0n ? b : 0n);
+    ds += q * q;
+  }
+
+  let a = np[5] - spawnNp[5][1];
+  let b = spawnNp[5][0] - np[5];
+  let q = a > 0n ? a : (b > 0n ? b : 0n);
+  const ds1 = ds + q * q;
+
+  a = np[5] - spawnNp[6][1];
+  b = spawnNp[6][0] - np[5];
+  q = a > 0n ? a : (b > 0n ? b : 0n);
+  const ds2 = ds + q * q;
+
+  ds = ds1 <= ds2 ? ds1 : ds2;
+
+  // dependence on distance from origin
+  const ax = BigInt(x) * BigInt(x);
+  const bz = BigInt(z) * BigInt(z);
+  const s = Number(ax + bz) / (2500 * 2500);
+  return BigInt(Math.trunc(s * s * 1e8)) + ds;
+}
+
+function findFittest(
+  g: Generator, pos: Pos, fitness: { v: bigint }, maxrad: number, step: number,
+): void {
+  const px = pos.x;
+  const pz = pos.z;
+  for (let rad = step; rad <= maxrad; rad += step) {
+    for (let ang = 0; ang <= Math.PI * 2; ang += step / rad) {
+      const x = px + Math.trunc(Math.sin(ang) * rad);
+      const z = pz + Math.trunc(Math.cos(ang) * rad);
+      const fit = calcFitness(g, x, z);
+      if (fit < fitness.v) {
+        pos.x = x;
+        pos.z = z;
+        fitness.v = fit;
+      }
+    }
+  }
+}
+
+function findFittestPos(g: Generator): Pos {
+  const spawn: Pos = { x: 0, z: 0 };
+  const fitness = { v: calcFitness(g, 0, 0) };
+  findFittest(g, spawn, fitness, 2048.0, 512.0);
+  findFittest(g, spawn, fitness, 512.0, 32.0);
+  spawn.x = (spawn.x & ~15) + 8;
+  spawn.z = (spawn.z & ~15) + 8;
+  return spawn;
+}
+
+/**
+ * Finds the approximate spawn point in the world. MC 1.18+ uses the fitness
+ * search (the exact getSpawn refinement depends on the unported SurfaceNoise).
+ */
+export function estimateSpawn(g: Generator): Pos {
+  return findFittestPos(g);
 }

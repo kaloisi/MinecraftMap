@@ -243,7 +243,7 @@ This section documents **every public function, struct, and enum** in the origin
 | `StructureConfig { salt, regionSize, chunkRange, structType, dim, rarity }` | **[PORTED]** | `StructureConfig` interface |
 | `StructureType` enum | **[PORTED]** | `StructureType` const enum |
 | `Pos3 { x, y, z }` | | 3D position |
-| `StrongholdIter` | | Stronghold ring iterator |
+| `StrongholdIter` | **[PORTED]** | Stronghold ring iterator |
 | `StructureVariant` | | Detailed structure variant info |
 | `Piece` | | Structure piece linked list node |
 | `EndIsland` | | End island with position and radius |
@@ -271,11 +271,11 @@ This section documents **every public function, struct, and enum** in the origin
 
 | Function | Status | Notes |
 |----------|--------|-------|
-| `initFirstStronghold(sh, mc, s48)` | | Initialize stronghold ring iterator |
-| `nextStronghold(sh, g)` | | Advance to next stronghold position |
-| `estimateSpawn(g, rng)` | | Approximate spawn point |
-| `getSpawn(g)` | | Exact spawn point |
-| `locateBiome(g, x, y, z, radius, validB, validM, rng, passes)` | | Search for nearest biome match |
+| `initFirstStronghold(sh, mc, s48)` | **[PORTED]** | Initialize stronghold ring iterator (`StrongholdIter`) |
+| `nextStronghold(sh, g)` | **[PORTED]** | Advance to next stronghold position (biome-accurate for MC 1.18+) |
+| `estimateSpawn(g)` | **[PORTED]** | Approximate spawn point (1.18+ fitness search; `rng` out param omitted) |
+| `getSpawn(g)` | | Exact spawn point — needs `SurfaceNoise`/`mapApproxHeight` |
+| `locateBiome(g, x, y, z, radius, validB, validM, rng, passes)` | *internal* | MC 1.18+ branch ported privately in `finders.ts` for stronghold locates |
 
 #### Structure Properties
 
@@ -509,8 +509,7 @@ These upstream functions could add significant features if ported:
 | Function | What it enables |
 |----------|----------------|
 | `mapApproxHeight` | Approximate Overworld terrain heightmap (1:4 scale). Uses spline-evaluated climate noise. Requires porting `SurfaceNoise`. |
-| `initFirstStronghold` / `nextStronghold` | Stronghold ring positions. Currently handled via Web Worker in Tier 3. |
-| `getSpawn` / `estimateSpawn` | World spawn point calculation. |
+| `getSpawn` | Exact world spawn refinement (grass-block search). Needs `SurfaceNoise`/`mapApproxHeight`; `estimateSpawn` is ported and sufficient for the map overlay. |
 | `isViableStructurePos` | Full structure viability (Tier 2) — checks surrounding biomes, not just the biome at the structure position. |
 | `isViableStructureTerrain` | Terrain-based structure viability (e.g., ocean monuments need deep ocean around them). |
 | `getVariant` | Structure variant details (size, rotation, abandoned village, etc.). |

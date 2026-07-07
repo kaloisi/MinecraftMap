@@ -14,7 +14,8 @@ import {
   getBiomeAt,
 } from '../CubiomesTS';
 import { isViableFeatureBiome } from '../structureViability';
-import type { Range } from '../CubiomesTS';
+import { advanceStrongholds, getSpawnPoint } from '../strongholdSpawn';
+import type { Range, Pos } from '../CubiomesTS';
 import type { CustomMarker } from '../MapDataFile';
 
 export interface CubiomesMapProps {
@@ -22,6 +23,10 @@ export interface CubiomesMapProps {
   dimension: Dimension;
   mcVersion: MCVersion;
   enabledStructures: Set<StructureType>;
+  /** Show Overworld stronghold ring positions. */
+  showStrongholds?: boolean;
+  /** Show the approximate world spawn point. */
+  showSpawn?: boolean;
   /** Current viewport transform from the parent MapViewer. */
   transform: { x: number; y: number; scale: number };
   /** SVG viewport dimensions in pixels. */
@@ -388,11 +393,66 @@ const CustomMarkerOverlay = memo(function CustomMarkerOverlay({
   );
 });
 
+const SpecialMarkerOverlay = memo(function SpecialMarkerOverlay({
+  points,
+  scale,
+  color,
+  label,
+}: {
+  points: Pos[];
+  scale: number;
+  color: string;
+  label: string;
+}) {
+  const radius = Math.max(MARKER_RADIUS, 9 / scale);
+  const fontSize = Math.max(2, 8 / scale);
+  const showLabels = scale >= 2;
+  return (
+    <g>
+      {points.map((p, i) => {
+        const wx = p.x / BIOME_SCALE;
+        const wz = p.z / BIOME_SCALE;
+        return (
+          <g key={i}>
+            <circle
+              cx={wx}
+              cy={wz}
+              r={radius}
+              fill={color}
+              stroke="#000"
+              strokeWidth={Math.max(0.3, 1 / scale)}
+            />
+            {showLabels && (
+              <text
+                x={wx}
+                y={wz - radius - 0.5}
+                textAnchor="middle"
+                fill="#fff"
+                stroke="#000"
+                strokeWidth={0.15}
+                paintOrder="stroke"
+                fontSize={fontSize}
+              >
+                {label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
+const STRONGHOLD_COLOR = '#3FB8A8';
+const SPAWN_COLOR = '#FF5252';
+
 export default function CubiomesMap({
   seed,
   dimension,
   mcVersion,
   enabledStructures,
+  showStrongholds,
+  showSpawn,
   transform,
   viewportWidth,
   viewportHeight,
@@ -415,6 +475,32 @@ export default function CubiomesMap({
   }, [cursorWorld, onBiomeHover, asyncVersion]);
   const [structureMarkers, setStructureMarkers] = useState<StructureMarker[]>([]);
   const structureGenId = useRef(0);
+  const [strongholds, setStrongholds] = useState<Pos[]>([]);
+  const strongholdRunId = useRef(0);
+
+  useEffect(() => {
+    if (!showStrongholds) {
+      setStrongholds([]);
+      return;
+    }
+    const runId = ++strongholdRunId.current;
+    let cancelled = false;
+    // Strongholds are resolved in ring order (nearest first), a couple per frame
+    // so the biome searches never block the UI. Progress is cached per seed.
+    const step = () => {
+      if (cancelled || runId !== strongholdRunId.current) return;
+      const { strongholds: list, done } = advanceStrongholds(seed, mcVersion, 2);
+      setStrongholds(list);
+      if (!done) setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+    return () => { cancelled = true; };
+  }, [showStrongholds, seed, mcVersion]);
+
+  const spawnPoint = useMemo(
+    () => (showSpawn ? getSpawnPoint(seed, mcVersion) : null),
+    [showSpawn, seed, mcVersion],
+  );
 
   const pendingKeys = useMemo(() => {
     if (viewportWidth === 0 || viewportHeight === 0) return [];
@@ -560,6 +646,12 @@ export default function CubiomesMap({
       )}
       {customMarkers && customMarkers.length > 0 && (
         <CustomMarkerOverlay markers={customMarkers} scale={transform.scale} />
+      )}
+      {showStrongholds && strongholds.length > 0 && (
+        <SpecialMarkerOverlay points={strongholds} scale={transform.scale} color={STRONGHOLD_COLOR} label="Stronghold" />
+      )}
+      {showSpawn && spawnPoint && (
+        <SpecialMarkerOverlay points={[spawnPoint]} scale={transform.scale} color={SPAWN_COLOR} label="Spawn" />
       )}
     </>
   );

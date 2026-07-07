@@ -255,3 +255,20 @@ After a successful port:
 - **Outpost (1.18+) does NOT include `savanna_plateau`.** The cubiomes source only lists desert, plains, savanna, snowy_plains, taiga, meadow, frozen_peaks, jagged_peaks, stony_peaks, snowy_slopes, grove, cherry_grove.
 - **Village does NOT include `cherry_grove` in `isViableFeatureBiome`.** Cherry grove villages are handled by `isViableStructurePos` (Tier 2 checks), not the biome-level check.
 - **Swamp_Hut only checks for `swamp`, not `mangrove_swamp`.** The C source's `isViableFeatureBiome` returns true only for `swamp`. Mangrove swamp witch huts may be handled differently in newer versions.
+
+### 2026-07-07 — Port strongholds & spawn to finders.ts (upstream `e61f9058`, unchanged)
+
+**Files modified:** `finders.ts`, `index.ts`, `README.md`
+
+**Changes:**
+- Ported `initFirstStronghold`, `nextStronghold`, `estimateSpawn` and the `StrongholdIter` interface from `finders.c` (previously listed as unported). Also ported the private helpers they depend on: `locateBiome` (MC 1.18+ branch only), `isStrongholdBiome`, `isOverworld` (simplified for 1.18+), `idMatches`, `calcFitness`, `findFittest`, `findFittestPos`.
+- Exported the three public functions and `StrongholdIter` from `index.ts`.
+- UI consumers live outside CubiomesTS in `src/strongholdSpawn.ts` (per-seed caching + incremental generation) — the library itself stays consumer-agnostic.
+
+**Learnings:**
+- **`getSpawn` is intentionally not ported.** Its refinement loop needs `SurfaceNoise`/`mapApproxHeight` (still unported). `estimateSpawn`'s 1.18+ `findFittestPos` path is self-contained and is what map viewers actually display.
+- **`locateBiome` uses `sampleBiomeNoise` directly, not `getBiomeAt`.** This emulates the order-dependent generation of MC-241546 via a shared `dat` accumulator passed across the whole scan grid. Faithful port keeps a single `{ val: 0 }` object for the loop.
+- **`isOverworld`/`biomeExists` can be simplified for a valid-biome mask.** The stronghold biome mask is only ever tested against biome ids the Overworld generator actually emits, so a full `biomeExists` port is unnecessary — rejecting the Nether/End id ranges in `isOverworld` is sufficient (never-generated ids left in the mask are harmless).
+- **The app's coarse `MCVersion` (18/19/20/21) must be mapped onto cubiomes' finer version gates.** `nextStronghold` branches on `MC_1_19_2`; the app has no such value. Treat app `MC_1_19` as the latest 1.19.x (1.19.3+ behaviour: separately-seeded biome-locate RNG) and `MC_1_18` as the pre-1.19.3 path. Similarly the spawn `calcFitness` distance-weight formula split at `MC_1_21_1` collapses to the single `double`-based branch because every app version is ≤ 1.21.1.
+- **`nextLong` returns an unsigned-masked bigint; `setSeed` masks to 48 bits anyway**, so passing it straight into `setSeed` for the derived locate RNG is bit-exact regardless of sign.
+- **C `(int)` truncation → `Math.trunc`, C `round()` → `Math.round`.** `findFittest` casts with `(int)` (toward zero) while stronghold positions use `round()`; don't conflate them.

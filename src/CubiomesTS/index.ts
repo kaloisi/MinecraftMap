@@ -34,5 +34,6 @@ export {
   getFeaturePos, getLargeStructurePos,
   isSlimeChunk, moveStructure,
   isViableFeatureBiome,
-  type StructureConfig, type Pos,
+  initFirstStronghold, nextStronghold, estimateSpawn,
+  type StructureConfig, type Pos, type StrongholdIter,
 } from './finders';

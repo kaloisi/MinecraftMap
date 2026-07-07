@@ -67,6 +67,8 @@ function loadStateFromFile(file: MapDataFile, seed: bigint) {
   return {
     mcVersion: version ?? MCVersion.MC_1_21,
     enabledStructures: new Set<StructureType>(structures ?? []),
+    showStrongholds: file.getNumber('showStrongholds') === 1,
+    showSpawn: file.getNumber('showSpawn') === 1,
     centerX: x ?? 0,
     centerZ: z ?? 0,
     mapName: name ?? seed.toString(),
@@ -161,6 +163,8 @@ export default function App() {
   const [dimension, setDimension] = useState<Dimension>(Dimension.DIM_OVERWORLD);
   const [mcVersion, setMcVersion] = useState<MCVersion>(initial.mcVersion);
   const [enabledStructures, setEnabledStructures] = useState<Set<StructureType>>(initial.enabledStructures);
+  const [showStrongholds, setShowStrongholds] = useState<boolean>(initial.showStrongholds);
+  const [showSpawn, setShowSpawn] = useState<boolean>(initial.showSpawn);
   const [fileMenuAnchor, setFileMenuAnchor] = useState<null | HTMLElement>(null);
   const [structMenuAnchor, setStructMenuAnchor] = useState<null | HTMLElement>(null);
   const [subMenuAnchor, setSubMenuAnchor] = useState<null | HTMLElement>(null);
@@ -280,6 +284,8 @@ export default function App() {
     setMcVersion(state.mcVersion);
     setMapName(state.mapName);
     setEnabledStructures(state.enabledStructures);
+    setShowStrongholds(state.showStrongholds);
+    setShowSpawn(state.showSpawn);
     setCustomMarkers(file.getMarkers());
     setCenterX(formatCoord(state.centerX));
     setCenterZ(formatCoord(state.centerZ));
@@ -411,6 +417,22 @@ export default function App() {
         next.add(structType);
       }
       mapDataFileRef.current.setJSON('enabledStructures', Array.from(next));
+      return next;
+    });
+  }, []);
+
+  const handleToggleStrongholds = useCallback(() => {
+    setShowStrongholds((prev) => {
+      const next = !prev;
+      mapDataFileRef.current.setNumber('showStrongholds', next ? 1 : 0);
+      return next;
+    });
+  }, []);
+
+  const handleToggleSpawn = useCallback(() => {
+    setShowSpawn((prev) => {
+      const next = !prev;
+      mapDataFileRef.current.setNumber('showSpawn', next ? 1 : 0);
       return next;
     });
   }, []);
@@ -637,6 +659,19 @@ export default function App() {
                       <ListItemText>{label}</ListItemText>
                     </MenuItem>
                   ))}
+                  {activeGroupIdx === 0 && <Divider />}
+                  {activeGroupIdx === 0 && (
+                    <MenuItem onClick={handleToggleStrongholds}>
+                      <Checkbox checked={showStrongholds} size="small" sx={{ p: 0, mr: 1 }} />
+                      <ListItemText>Strongholds</ListItemText>
+                    </MenuItem>
+                  )}
+                  {activeGroupIdx === 0 && (
+                    <MenuItem onClick={handleToggleSpawn}>
+                      <Checkbox checked={showSpawn} size="small" sx={{ p: 0, mr: 1 }} />
+                      <ListItemText>Spawn</ListItemText>
+                    </MenuItem>
+                  )}
                   {activeGroupIdx === -2 && customMarkers.length === 0 && (
                     <MenuItem disabled>
                       <ListItemText>No custom markers</ListItemText>
@@ -702,7 +737,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Box sx={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} customMarkers={customMarkers} />
+          <MapViewer ref={mapRef} seed={seed} dimension={dimension} mcVersion={mcVersion} enabledStructures={enabledStructures} showStrongholds={showStrongholds} showSpawn={showSpawn} initialCenter={{ x: initial.centerX, z: initial.centerZ }} initialZoom={initial.zoom} onBiomeHover={setHoveredBiome} onCenterChange={handleCenterChange} onZoomChange={handleZoomChange} onCursorChange={setCursorPos} onLocationClick={handleLocationClick} highlightLine={highlightLine} customMarkers={customMarkers} />
           <DimensionToggle dimension={dimension} onDimensionChange={setDimension} />
           <Typography
             variant="body2"

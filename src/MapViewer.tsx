@@ -22,6 +22,8 @@ export interface MapViewerProps {
   dimension: Dimension;
   mcVersion: MCVersion;
   enabledStructures: Set<StructureType>;
+  showStrongholds?: boolean;
+  showSpawn?: boolean;
   initialCenter?: { x: number; z: number };
   initialZoom?: number;
   onBiomeHover?: (name: string | null) => void;
@@ -42,7 +44,7 @@ const BIOME_SCALE = 4;
 
 const INITIAL_SCALE = 4;
 
-const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick, highlightLine, customMarkers }, ref) {
+const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer({ seed, dimension, mcVersion, enabledStructures, showStrongholds, showSpawn, initialCenter, initialZoom, onBiomeHover, onCenterChange, onZoomChange, onCursorChange, onLocationClick, highlightLine, customMarkers }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom ?? INITIAL_SCALE });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -246,6 +248,8 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
             dimension={dimension}
             mcVersion={mcVersion}
             enabledStructures={enabledStructures}
+            showStrongholds={showStrongholds}
+            showSpawn={showSpawn}
             transform={transform}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}
