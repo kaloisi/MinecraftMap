@@ -193,9 +193,15 @@ const MapViewer = forwardRef<MapViewerHandle, MapViewerProps>(function MapViewer
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
-        setViewport({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
+        const newWidth = entry.contentRect.width;
+        const newHeight = entry.contentRect.height;
+        setViewport((prev) => {
+          if (prev.width > 0 && prev.height > 0) {
+            const dx = (newWidth - prev.width) / 2;
+            const dy = (newHeight - prev.height) / 2;
+            setTransform((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
+          }
+          return { width: newWidth, height: newHeight };
         });
       }
     });
